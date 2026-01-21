@@ -18,12 +18,12 @@ const APP_CONFIG = {
   // 3. Credits Popup Info
   credits: {
     appName: "Tenshon Tiler",
-    description: "Created for Romeo & Juliet Act 1 Play.",
+    description: "Soundboard created for our Romeo & Juliet Act 1 Play lol",
     footerText: "Made with Gemini, Idea by CircleSide",
     
     // Social Links (Leave empty "" to hide)
     links: {
-      github: "https://github.com/CircleSideisCOOL",
+      github: "https://github.com/CircleSideisCOOL/tenshon-tiler/",
       kofi: "https://ko-fi.com/circle_side"
     }
   }
