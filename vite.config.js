@@ -11,12 +11,11 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Tenshon Tiler',
-        short_name: 'Tenshon',
+        short_name: 'Tenshon Tiler',
         description: 'Professional Theater Soundboard',
         theme_color: '#0f172a', // Matches the slate-900 background
         background_color: '#0f172a',
         display: 'standalone', // Hides the browser address bar
-        orientation: 'landscape', // Forces landscape mode (optional, remove if you want portrait)
         icons: [
           {
             src: 'favicon.ico', // We are using your favicon as the app icon for now
