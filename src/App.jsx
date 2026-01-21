@@ -1,31 +1,34 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Play, 
-  Square, 
-  Plus, 
-  Trash2, 
-  Settings, 
-  Volume2, 
-  Music, 
-  Upload, 
-  Keyboard, 
-  X,
-  Repeat,
-  MoreVertical,
-  AlertCircle,
-  Image as ImageIcon,
-  Layers,
-  Download,
-  FolderOpen,
-  Loader2,
-  Activity,
-  Zap,
-  Power,
-  Scissors,
-  Github,
-  Coffee,
-  Heart
+  Play, Square, Plus, Trash2, Settings, Volume2, Music, Upload, 
+  Keyboard, X, Repeat, MoreVertical, AlertCircle, Image as ImageIcon, 
+  Layers, Download, FolderOpen, Loader2, Activity, Zap, Power, 
+  Scissors, Github, Coffee, Heart 
 } from 'lucide-react';
+
+// --- 🔧 CONFIGURATION: EDIT THIS SECTION 🔧 ---
+const APP_CONFIG = {
+  // 1. Website Title (Browser Tab)
+  title: "Tenshon Tiler",
+
+  // 2. Favicon (Icon in Browser Tab & Header Logo)
+  // Using the high-res PNG so it looks sharp in the Header and Credits
+  favicon: "/android-chrome-192x192.png",
+  
+  // 3. Credits Popup Info
+  credits: {
+    appName: "Tenshon Tiler",
+    description: "Created for Romeo & Juliet Act 1 Play.",
+    footerText: "Made with Gemini, Idea by CircleSide",
+    
+    // Social Links (Leave empty "" to hide)
+    links: {
+      github: "https://github.com/CircleSideisCOOL",
+      kofi: "https://ko-fi.com/circle_side"
+    }
+  }
+};
+// ----------------------------------------------
 
 // --- Constants ---
 const COLORS = [
@@ -117,27 +120,25 @@ export default function SoundboardApp() {
   
   // --- Set Favicon & Title ---
   useEffect(() => {
-    document.title = "Tenshon Tiler"; // Updated Title
-    let link = document.querySelector("link[rel~='icon']");
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.getElementsByTagName('head')[0].appendChild(link);
+    document.title = APP_CONFIG.title;
+
+    const existingIcons = document.querySelectorAll("link[rel*='icon']");
+    existingIcons.forEach(el => el.remove());
+
+    const link = document.createElement('link');
+    link.rel = 'icon';
+
+    if (APP_CONFIG.favicon.trim().startsWith('<svg')) {
+        link.type = 'image/svg+xml';
+        link.href = `data:image/svg+xml,${encodeURIComponent(APP_CONFIG.favicon)}`;
+    } else {
+        link.href = APP_CONFIG.favicon;
+        if (APP_CONFIG.favicon.endsWith('.png')) link.type = 'image/png';
+        else if (APP_CONFIG.favicon.endsWith('.svg')) link.type = 'image/svg+xml';
+        else link.type = 'image/x-icon';
     }
-    link.type = 'image/svg+xml';
-    const svgIcon = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="grad" x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <rect width="100" height="100" rx="22" fill="url(#grad)" />
-        <path d="M40 70a12 12 0 1 1-12-12 12 12 0 0 1 12 12V35l30-10v45a12 12 0 1 1-12-12 12 12 0 0 1 12 12V15L40 25z" fill="white" />
-      </svg>
-    `.trim();
-    link.href = `data:image/svg+xml,${encodeURIComponent(svgIcon)}`;
+    
+    document.head.appendChild(link);
   }, []);
 
   // Cleanup
@@ -180,7 +181,6 @@ export default function SoundboardApp() {
   // Update preview volume dynamically when slider moves
   useEffect(() => {
     if (previewAudioRef.current && editingSound) {
-        // Safe check for normal audio element
         if (previewAudioRef.current.volume !== undefined) {
             previewAudioRef.current.volume = editingSound.volume;
         }
@@ -239,7 +239,6 @@ export default function SoundboardApp() {
 
   const updateVisualState = (id, increment) => {
       if (!playCountsRef.current[id]) playCountsRef.current[id] = 0;
-      
       if (increment === 'reset') {
           playCountsRef.current[id] = 0;
       } else if (increment) {
@@ -247,10 +246,8 @@ export default function SoundboardApp() {
       } else {
           playCountsRef.current[id] = Math.max(0, playCountsRef.current[id] - 1);
       }
-      
       const total = Object.values(playCountsRef.current).reduce((a, b) => a + b, 0);
       setGlobalPlayCount(total);
-
       setActiveSounds(prev => ({
           ...prev,
           [id]: playCountsRef.current[id] > 0
@@ -673,12 +670,19 @@ export default function SoundboardApp() {
                   className="flex items-center gap-3 cursor-pointer group select-none"
                   title="View Credits"
                 >
-                  <div className="p-2 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg shadow-lg group-hover:scale-105 transition-transform duration-300">
-                    <Music className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 rounded-xl group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+                    {/* DYNAMIC HEADER LOGO */}
+                    {APP_CONFIG.favicon.trim().startsWith('<') ? (
+                       <div className="w-full h-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center">
+                          <Music className="w-6 h-6 text-white" />
+                       </div>
+                    ) : (
+                       <img src={APP_CONFIG.favicon} alt="Logo" className="w-full h-full object-cover" />
+                    )}
                   </div>
                   <div className="flex flex-col">
                       <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-400 hidden sm:block leading-none group-hover:to-cyan-300 transition-all">
-                      Tenshon Tiler
+                      {APP_CONFIG.title}
                       </h1>
                       {statusMsg && <span className="text-xs text-amber-400 font-medium animate-pulse">{statusMsg}</span>}
                   </div>
@@ -900,26 +904,37 @@ export default function SoundboardApp() {
           <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 max-w-sm w-full text-center relative" onClick={e => e.stopPropagation()}>
              <button onClick={() => setShowCredits(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
              
-             <div className="w-16 h-16 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg">
-                <Music className="w-8 h-8 text-white" />
+             <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center overflow-hidden">
+                {/* DYNAMIC CREDITS LOGO */}
+                {APP_CONFIG.favicon.trim().startsWith('<') ? (
+                  <div className="w-full h-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center">
+                    <Music className="w-8 h-8 text-white" />
+                  </div>
+                ) : (
+                  <img src={APP_CONFIG.favicon} alt="Logo" className="w-full h-full object-cover" />
+                )}
              </div>
              
-             <h2 className="text-2xl font-bold text-white mb-2">Tenshon Tiler</h2>
-             <p className="text-slate-400 mb-8 text-sm">Created for Romeo & Juliet Act 1 Play.</p>
+             <h2 className="text-2xl font-bold text-white mb-2">{APP_CONFIG.credits.appName}</h2>
+             <p className="text-slate-400 mb-8 text-sm">{APP_CONFIG.credits.description}</p>
              
              <div className="space-y-3">
-                <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors font-medium text-white group">
-                   <Github className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
-                   Visit GitHub
-                </a>
-                <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-[#FF5E5B] hover:bg-[#ff4f4c] rounded-xl transition-colors font-medium text-white group">
-                   <Coffee className="w-5 h-5 text-white group-hover:rotate-12 transition-transform" />
-                   Support on Ko-fi
-                </a>
+                {APP_CONFIG.credits.links.github && (
+                  <a href={APP_CONFIG.credits.links.github} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors font-medium text-white group">
+                     <Github className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                     Visit GitHub
+                  </a>
+                )}
+                {APP_CONFIG.credits.links.kofi && (
+                  <a href={APP_CONFIG.credits.links.kofi} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-[#FF5E5B] hover:bg-[#ff4f4c] rounded-xl transition-colors font-medium text-white group">
+                     <Coffee className="w-5 h-5 text-white group-hover:rotate-12 transition-transform" />
+                     Support on Ko-fi
+                  </a>
+                )}
              </div>
 
              <div className="mt-8 text-xs text-slate-500 flex items-center justify-center gap-1">
-                Made with <Heart className="w-3 h-3 text-red-500 fill-current" /> by You
+                {APP_CONFIG.credits.footerText}
              </div>
           </div>
         </div>
