@@ -8,28 +8,41 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // Include all your static assets here to ensure they are cached
+      includeAssets: [
+        'favicon.ico', 
+        'apple-touch-icon.png', 
+        'favicon-16x16.png', 
+        'favicon-32x32.png'
+      ],
       manifest: {
         name: 'Tenshon Tiler',
         short_name: 'Tenshon Tiler',
         description: 'Professional Theater Soundboard',
-        theme_color: '#0f172a', // Matches the slate-900 background
+        theme_color: '#0f172a',
         background_color: '#0f172a',
-        display: 'standalone', // Hides the browser address bar
+        display: 'standalone',
+        orientation: 'landscape',
         icons: [
           {
-            src: 'favicon.ico', // We are using your favicon as the app icon for now
-            sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/x-icon'
-          },
-          {
-            src: 'edited-image.png', // Ideally you want a 192x192 png here
+            src: 'android-chrome-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'edited-image.png', // And a 512x512 png here
+            src: 'android-chrome-512x512.png',
             sizes: '512x512',
+            type: 'image/png'
+          },
+          // Adding the small favicons here helps some browsers too
+          {
+            src: 'favicon-32x32.png',
+            sizes: '32x32',
+            type: 'image/png'
+          },
+          {
+            src: 'favicon-16x16.png',
+            sizes: '16x16',
             type: 'image/png'
           }
         ]
