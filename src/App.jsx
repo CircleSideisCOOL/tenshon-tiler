@@ -14,6 +14,7 @@ const APP_CONFIG = {
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
   favicon: "/android-chrome-192x192.png",  
+
   // 3. Credits Popup Info
   credits: {
     appName: "Tenshon Tiler",
@@ -95,7 +96,9 @@ export default function SoundboardApp() {
       mode: 'restart',
       overlap: true, 
       fadeIn: 0,
-      fadeOut: 0.5
+      fadeOut: 0.5,
+      pauseFade: 0.1, // Default small fade for pauses
+      resumeFade: 0.1 // Default small fade for resumes
     }
   ]);
   
@@ -116,6 +119,7 @@ export default function SoundboardApp() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewAudioRef = useRef(null);
   const fileInputRef = useRef(null); 
+  const pauseFadeTimeoutRef = useRef(null);
   
   // --- ROBUST AUDIO ENGINE REFS ---
   const bufferCacheRef = useRef({}); 
@@ -167,6 +171,7 @@ export default function SoundboardApp() {
       if (audioCtx) {
           audioCtx.close().then(() => { audioCtx = null; });
       }
+      if (pauseFadeTimeoutRef.current) clearTimeout(pauseFadeTimeoutRef.current);
       sounds.forEach(sound => {
         if (sound.src && sound.src.startsWith('blob:')) URL.revokeObjectURL(sound.src);
         if (sound.image && sound.image.startsWith('blob:')) URL.revokeObjectURL(sound.image);
@@ -205,36 +210,31 @@ export default function SoundboardApp() {
     }
   }, [statusMsg]);
 
-  // --- LIVE VOLUME UPDATE (True Master Gain Implementation) ---
+  // --- LIVE VOLUME UPDATE ---
   useEffect(() => {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
-    // 1. UPDATE GLOBAL MASTER GAIN (Handles all One-Shot sounds instantly)
-    // This physically cuts the output wire if volume is 0.
+    // 1. UPDATE GLOBAL MASTER GAIN
     if (ctx.masterGain) {
-        // Fast smoothing (0.015s) for responsive feel without clicking
-        ctx.masterGain.gain.setTargetAtTime(masterVolume, now, 0.015);
-        
-        // Hard cut if 0 to avoid floating point leak
-        if (masterVolume === 0) {
-            ctx.masterGain.gain.setValueAtTime(0, now + 0.05); 
+        // Only update if NOT currently in a global pause/resume fade transition
+        if (!isGlobalPaused) { 
+             ctx.masterGain.gain.setTargetAtTime(masterVolume, now, 0.015);
+             if (masterVolume === 0) {
+                 ctx.masterGain.gain.setValueAtTime(0, now + 0.05); 
+             }
         }
     }
 
     // 2. UPDATE INDIVIDUAL SOUNDS
     sounds.forEach(sound => {
         // A. HTML Audio Elements (Toggle Sounds)
-        // These don't go through the masterGain node, so we calculate manually.
         const audioEl = activeElementsRef.current[sound.id];
         if (audioEl) {
-            // Only update if not actively fading. 
-            // FIX: Added logic elsewhere to ensure _fadeInterval is cleared properly so this block runs.
-            if (!audioEl._fadeInterval) {
+            // Only update volume if not actively fading or globally paused
+            if (!audioEl._fadeInterval && !isGlobalPaused) {
                const calculatedVol = sound.volume * masterVolume;
-               // Force 0 if very small to prevent whispering
                const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
-               // Only set if different to avoid spamming the element
                if (Math.abs(audioEl.volume - finalVol) > 0.001) {
                   audioEl.volume = finalVol;
                }
@@ -246,8 +246,6 @@ export default function SoundboardApp() {
         if (sources) {
             sources.forEach(({ gainNode }) => {
                 try {
-                    // Update the sound's specific volume (e.g. if you edited the clip volume)
-                    // Master volume is already applied via ctx.masterGain
                     gainNode.gain.setTargetAtTime(sound.volume, now, 0.05); 
                 } catch(e) {}
             });
@@ -260,7 +258,7 @@ export default function SoundboardApp() {
          previewAudioRef.current.volume = pVol < 0.001 ? 0 : pVol;
     }
 
-  }, [masterVolume, sounds, editingSound, isPreviewPlaying]);
+  }, [masterVolume, sounds, editingSound, isPreviewPlaying, isGlobalPaused]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -296,34 +294,116 @@ export default function SoundboardApp() {
 
   const toggleGlobalPause = async () => {
       const ctx = getAudioContext();
+      const now = ctx.currentTime;
+      // Default global fade if individual sounds don't have settings, 
+      // but we will try to use individual resumeFades where possible.
+      const DEFAULT_GLOBAL_FADE = 0.5; 
+
       if (isGlobalPaused) {
-          // RESUME
+          // --- RESUME (Fade In) ---
           if (ctx.state === 'suspended') await ctx.resume();
+          
+          // 1. Resume Web Audio
+          if (ctx.masterGain) {
+              ctx.masterGain.gain.setValueAtTime(0, now);
+              ctx.masterGain.gain.linearRampToValueAtTime(masterVolume, now + DEFAULT_GLOBAL_FADE);
+          }
+
+          // 2. Resume HTML Audio (Toggles)
           pausedHtmlAudioRef.current.forEach(id => {
               const audio = activeElementsRef.current[id];
-              if (audio) {
+              const sound = sounds.find(s => s.id === id);
+              if (audio && sound) {
+                  audio.volume = 0;
                   audio.play().catch(e => console.error("Resume error", e));
+                  
+                  // Use sound-specific resume fade or default to 0.1 (quick) if undefined
+                  const fadeDuration = sound.resumeFade !== undefined ? sound.resumeFade : 0.1;
+                  const targetVol = sound.volume * masterVolume;
+                  
+                  const steps = 20;
+                  const stepTime = (fadeDuration * 1000) / steps;
+                  const volStep = targetVol / steps;
+                  
+                  // Clear existing fade to prevent conflicts
+                  if (audio._fadeInterval) clearInterval(audio._fadeInterval);
+
+                  let currentVol = 0;
+                  const fadeInterval = setInterval(() => {
+                      currentVol += volStep;
+                      if (currentVol >= targetVol) {
+                          audio.volume = targetVol;
+                          clearInterval(fadeInterval);
+                          audio._fadeInterval = null;
+                      } else {
+                          audio.volume = currentVol;
+                      }
+                  }, stepTime);
+                  audio._fadeInterval = fadeInterval;
               }
           });
           pausedHtmlAudioRef.current.clear();
           setIsGlobalPaused(false);
+
       } else {
-          // PAUSE
-          await ctx.suspend();
+          // --- PAUSE (Fade Out) ---
+          setIsGlobalPaused(true); 
+
+          // 1. Fade Out Web Audio
+          if (ctx.masterGain) {
+              ctx.masterGain.gain.cancelScheduledValues(now);
+              ctx.masterGain.gain.setValueAtTime(ctx.masterGain.gain.value, now);
+              ctx.masterGain.gain.linearRampToValueAtTime(0, now + DEFAULT_GLOBAL_FADE);
+          }
+
+          // 2. Fade Out HTML Audio (Active Toggles)
+          let maxFadeTime = 0;
           Object.entries(activeElementsRef.current).forEach(([id, audio]) => {
-              if (audio && !audio.paused) {
-                  audio.pause();
+              const sound = sounds.find(s => s.id === id);
+              if (audio && !audio.paused && sound) {
                   pausedHtmlAudioRef.current.add(id);
+                  
+                  // Use sound-specific pause fade or default
+                  const fadeDuration = sound.pauseFade !== undefined ? sound.pauseFade : 0.1;
+                  maxFadeTime = Math.max(maxFadeTime, fadeDuration);
+
+                  const startVol = audio.volume;
+                  const steps = 20;
+                  const stepTime = (fadeDuration * 1000) / steps;
+                  const volStep = startVol / steps;
+
+                  if (audio._fadeInterval) clearInterval(audio._fadeInterval);
+
+                  const fadeInterval = setInterval(() => {
+                      if (audio.volume > volStep) {
+                          audio.volume -= volStep;
+                      } else {
+                          audio.volume = 0;
+                          clearInterval(fadeInterval);
+                          audio._fadeInterval = null;
+                      }
+                  }, stepTime);
+                  audio._fadeInterval = fadeInterval;
               }
           });
-          setIsGlobalPaused(true);
+
+          // 3. Suspend after longest fade completes (or default)
+          const waitTime = Math.max(maxFadeTime, DEFAULT_GLOBAL_FADE) * 1000;
+          
+          if (pauseFadeTimeoutRef.current) clearTimeout(pauseFadeTimeoutRef.current);
+          pauseFadeTimeoutRef.current = setTimeout(async () => {
+              pausedHtmlAudioRef.current.forEach(id => {
+                  const audio = activeElementsRef.current[id];
+                  if (audio) audio.pause();
+              });
+              await ctx.suspend();
+          }, waitTime);
       }
   };
 
   // --- AUDIO LOGIC ---
   const playSound = useCallback(async (id) => {
-    // If the board is paused, triggering a NEW sound should unpause everything
-    // This prevents confusion where you click and nothing happens
+    // If global paused, auto-resume (with fade in)
     if (isGlobalPaused) {
         await toggleGlobalPause();
     }
@@ -331,6 +411,7 @@ export default function SoundboardApp() {
     const sound = sounds.find(s => s.id === id);
     if (!sound) return;
 
+    // Demo Beep Logic
     if (sound.src === 'demo_beep') {
        const ctx = getAudioContext();
        if (ctx.state === 'suspended') ctx.resume();
@@ -338,13 +419,11 @@ export default function SoundboardApp() {
        const osc = ctx.createOscillator();
        const gain = ctx.createGain();
        osc.connect(gain);
-       // Route through Master Gain
        gain.connect(ctx.masterGain);
        
        osc.frequency.setValueAtTime(440, ctx.currentTime);
        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
        
-       // Use sound.volume directly (MasterGain handles the master volume)
        const beepVol = 0.3 * sound.volume;
        gain.gain.setValueAtTime(beepVol, ctx.currentTime);
        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
@@ -361,16 +440,17 @@ export default function SoundboardApp() {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
 
-    // For Toggles (HTML Audio), we must calculate master volume manually
-    // because they don't flow through the Web Audio Master Gain Node.
     const toggleTargetVol = sound.volume * masterVolume;
 
-    // --- MODE 1: TOGGLE ---
+    // --- MODE 1: TOGGLE (Now uses independent Pause/Resume fades) ---
     if (sound.mode === 'toggle') {
         let audio = activeElementsRef.current[id];
 
+        // CHECK IF PLAYING -> PAUSE IT
         if (audio && !audio.paused) {
-             const fadeTime = (sound.fadeOut || 0) * 1000;
+             const pauseDuration = sound.pauseFade !== undefined ? sound.pauseFade : 0.1;
+             const fadeTime = pauseDuration * 1000;
+             
              if (fadeTime > 0) {
                  const startVol = audio.volume;
                  const steps = 20;
@@ -383,39 +463,46 @@ export default function SoundboardApp() {
                      } else {
                          audio.volume = 0;
                          audio.pause();
-                         audio.currentTime = 0;
                          clearInterval(fadeInterval);
-                         audio._fadeInterval = null; // FIX: Ensure this is cleared
-                         updateVisualState(id, 'reset');
+                         audio._fadeInterval = null; 
+                         updateVisualState(id, 'reset'); 
                      }
                  }, stepTime);
                  audio._fadeInterval = fadeInterval;
              } else {
                  audio.pause();
-                 audio.currentTime = 0;
                  updateVisualState(id, 'reset');
              }
              return;
         }
 
+        // CHECK IF STOPPED/PAUSED -> RESUME IT
         if (!audio || audio.src !== sound.src) {
             audio = new Audio(sound.src);
             activeElementsRef.current[id] = audio;
-            audio.onended = () => updateVisualState(id, 'reset');
+            audio.onended = () => {
+                audio.currentTime = 0; 
+                updateVisualState(id, 'reset');
+            };
         }
 
         if (audio._fadeInterval) {
             clearInterval(audio._fadeInterval);
-            audio._fadeInterval = null; // FIX: Ensure this is cleared
+            audio._fadeInterval = null; 
         }
         
         audio.loop = sound.loop;
-        audio.currentTime = 0;
         
-        // Apply manual master volume calculation for toggles
+        // Determine if starting from 0 or resuming
+        const isResuming = audio.currentTime > 0 && !audio.ended;
+        // Use resumeFade if resuming, otherwise fadeIn
+        const fadeDuration = isResuming 
+            ? (sound.resumeFade !== undefined ? sound.resumeFade : 0.1) 
+            : (sound.fadeIn || 0);
+            
         const safeVol = toggleTargetVol < 0.001 ? 0 : toggleTargetVol;
-
-        const fadeTime = (sound.fadeIn || 0) * 1000;
+        const fadeTime = fadeDuration * 1000;
+        
         if (fadeTime > 0) {
             audio.volume = 0;
             audio.play().catch(e => console.error(e));
@@ -431,7 +518,7 @@ export default function SoundboardApp() {
                 if (currentVol >= safeVol) {
                     audio.volume = safeVol;
                     clearInterval(fadeInterval);
-                    audio._fadeInterval = null; // FIX: Ensure this is cleared
+                    audio._fadeInterval = null;
                 } else {
                     audio.volume = currentVol;
                 }
@@ -463,7 +550,6 @@ export default function SoundboardApp() {
         }
 
         let buffer = bufferCacheRef.current[id];
-        
         if (!buffer) {
             try {
                 const response = await fetch(sound.src);
@@ -483,16 +569,10 @@ export default function SoundboardApp() {
 
         const gainNode = ctx.createGain();
         source.connect(gainNode);
-        
-        // Route through GLOBAL MASTER GAIN instead of destination
-        // This ensures the Master Slider controls everything absolutely
         gainNode.connect(ctx.masterGain);
 
         const now = ctx.currentTime;
         const fadeIn = sound.fadeIn || 0;
-        
-        // Note: We use sound.volume here, NOT sound.volume * masterVolume
-        // because the Master Gain node handles the multiplication for us.
         const oneShotTargetVol = sound.volume;
 
         if (fadeIn > 0) {
@@ -522,10 +602,16 @@ export default function SoundboardApp() {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
-    // Reset Global Pause state so we don't get stuck
     setIsGlobalPaused(false);
     pausedHtmlAudioRef.current.clear();
+    if (pauseFadeTimeoutRef.current) clearTimeout(pauseFadeTimeoutRef.current);
+    
     if (ctx.state === 'suspended') ctx.resume();
+    // Restore master gain in case it was faded out by global pause
+    if (ctx.masterGain) {
+        ctx.masterGain.gain.cancelScheduledValues(now);
+        ctx.masterGain.gain.setValueAtTime(masterVolume, now);
+    }
 
     Object.values(activeElementsRef.current).forEach(audio => {
         if (audio) {
@@ -533,7 +619,7 @@ export default function SoundboardApp() {
             audio.currentTime = 0;
             if (audio._fadeInterval) {
                 clearInterval(audio._fadeInterval);
-                audio._fadeInterval = null; // FIX: Ensure this is cleared
+                audio._fadeInterval = null;
             }
         }
     });
@@ -597,7 +683,6 @@ export default function SoundboardApp() {
         let blob;
         let filename = "tenshon_tiler_data.json";
 
-        // OPTIMIZATION: GZIP Compression for .ttsave
         if ('CompressionStream' in window) {
             try {
                 const stream = new Blob([jsonString]).stream();
@@ -639,7 +724,6 @@ export default function SoundboardApp() {
         try {
             let jsonString;
             
-            // Try to detect compression based on extension or try decompression
             if (file.name.endsWith('.ttsave') && 'DecompressionStream' in window) {
                  try {
                      const stream = file.stream();
@@ -662,7 +746,15 @@ export default function SoundboardApp() {
                     if (s.src.startsWith('blob:')) URL.revokeObjectURL(s.src);
                     if (s.image && s.image.startsWith('blob:')) URL.revokeObjectURL(s.image);
                 });
-                setSounds(importedSounds);
+                
+                // MIGRATION LOGIC: Copy old fades if new ones are missing
+                const migratedSounds = importedSounds.map(s => ({
+                    ...s,
+                    pauseFade: s.pauseFade !== undefined ? s.pauseFade : (s.fadeOut || 0),
+                    resumeFade: s.resumeFade !== undefined ? s.resumeFade : (s.fadeIn || 0)
+                }));
+
+                setSounds(migratedSounds);
                 setSelectedCategory('All');
                 setStatusMsg("Import Successful!");
             } else {
@@ -768,7 +860,9 @@ export default function SoundboardApp() {
       mode: 'restart',
       overlap: true,
       fadeIn: 0,
-      fadeOut: 0.5
+      fadeOut: 0.5,
+      pauseFade: 0.1, // Default
+      resumeFade: 0.1 // Default
     });
     setShowDeleteConfirm(false);
     setShowModal(true);
@@ -779,6 +873,9 @@ export default function SoundboardApp() {
         ...sound, 
         fadeIn: sound.fadeIn || 0, 
         fadeOut: sound.fadeOut || 0,
+        // Fallback to original fades if new ones are undefined
+        pauseFade: sound.pauseFade !== undefined ? sound.pauseFade : (sound.fadeOut || 0), 
+        resumeFade: sound.resumeFade !== undefined ? sound.resumeFade : (sound.fadeIn || 0), 
         overlap: sound.overlap !== undefined ? sound.overlap : true
     });
     setShowDeleteConfirm(false);
@@ -1245,11 +1342,13 @@ export default function SoundboardApp() {
                 </div>
               </div>
 
+              {/* FADE CONTROLS */}
               <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
+                 {/* Standard Fades (Start/End) */}
                  <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-400">Fade In</span>
+                            <span className="text-slate-400">Fade In (Start)</span>
                             <span className="text-cyan-400">{editingSound.fadeIn || 0}s</span>
                         </div>
                         <input 
@@ -1261,7 +1360,7 @@ export default function SoundboardApp() {
                     </div>
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-400">Fade Out</span>
+                            <span className="text-slate-400">Fade Out (End)</span>
                             <span className="text-cyan-400">{editingSound.fadeOut || 0}s</span>
                         </div>
                         <input 
@@ -1272,6 +1371,36 @@ export default function SoundboardApp() {
                         />
                     </div>
                  </div>
+
+                 {/* Pause/Resume Fades (Only for Toggle Mode) */}
+                 {editingSound.mode === 'toggle' && (
+                    <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-400">Resume Fade</span>
+                                <span className="text-indigo-400">{editingSound.resumeFade ?? 0.1}s</span>
+                            </div>
+                            <input 
+                                type="range" min="0" max="5" step="0.1"
+                                value={editingSound.resumeFade ?? 0.1}
+                                onChange={e => setEditingSound({...editingSound, resumeFade: parseFloat(e.target.value)})}
+                                className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-400">Pause Fade</span>
+                                <span className="text-amber-400">{editingSound.pauseFade ?? 0.1}s</span>
+                            </div>
+                            <input 
+                                type="range" min="0" max="5" step="0.1"
+                                value={editingSound.pauseFade ?? 0.1}
+                                onChange={e => setEditingSound({...editingSound, pauseFade: parseFloat(e.target.value)})}
+                                className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                        </div>
+                    </div>
+                 )}
               </div>
 
               <div className="flex flex-col gap-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
