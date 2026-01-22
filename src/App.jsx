@@ -3,7 +3,7 @@ import {
   Play, Square, Plus, Trash2, Settings, Volume2, Music, Upload, 
   Keyboard, X, Repeat, MoreVertical, AlertCircle, Image as ImageIcon, 
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power, 
-  Scissors, Github, Coffee, Heart 
+  Scissors, Github, Coffee, Heart, Pause 
 } from 'lucide-react';
 
 // --- 🔧 CONFIGURATION: EDIT THIS SECTION 🔧 ---
@@ -12,9 +12,8 @@ const APP_CONFIG = {
   title: "Tenshon Tiler",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
-  // Using the high-res PNG so it looks sharp in the Header and Credits
-  favicon: "/android-chrome-192x192.png",
-  
+  // Modified to use an inline SVG so it works in the preview immediately
+  favicon: "/android-chrome-192x192.png"  
   // 3. Credits Popup Info
   credits: {
     appName: "Tenshon Tiler",
@@ -49,11 +48,16 @@ const COLORS = [
   { name: 'Slate', class: 'bg-slate-600 hover:bg-slate-500 border-slate-800', active: 'bg-slate-400', glow: 'shadow-[0_0_20px_rgba(71,85,105,0.6)]' },
 ];
 
-// --- Web Audio Context Singleton ---
+// --- Web Audio Context Singleton with Master Gain ---
 let audioCtx = null;
 const getAudioContext = () => {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Create a GLOBAL Master Gain Node
+    // All one-shot sounds will route through this before reaching the speakers.
+    audioCtx.masterGain = audioCtx.createGain();
+    audioCtx.masterGain.connect(audioCtx.destination);
+    audioCtx.masterGain.gain.value = 1; // Start at 100%
   }
   return audioCtx;
 };
@@ -107,6 +111,7 @@ export default function SoundboardApp() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isLoading, setIsLoading] = useState(false); 
   const [statusMsg, setStatusMsg] = useState(''); 
+  const [isGlobalPaused, setIsGlobalPaused] = useState(false);
   
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewAudioRef = useRef(null);
@@ -117,6 +122,7 @@ export default function SoundboardApp() {
   const activeSourcesRef = useRef({}); 
   const activeElementsRef = useRef({}); 
   const playCountsRef = useRef({}); 
+  const pausedHtmlAudioRef = useRef(new Set()); // Tracks active toggles that we paused manually
   
   // --- Set Favicon & Title ---
   useEffect(() => {
@@ -153,6 +159,10 @@ export default function SoundboardApp() {
       Object.values(activeElementsRef.current).forEach(audio => {
           audio.pause(); 
           audio.src = ''; 
+          if (audio._fadeInterval) {
+              clearInterval(audio._fadeInterval);
+              audio._fadeInterval = null;
+          }
       });
       if (audioCtx) {
           audioCtx.close().then(() => { audioCtx = null; });
@@ -182,10 +192,11 @@ export default function SoundboardApp() {
   useEffect(() => {
     if (previewAudioRef.current && editingSound) {
         if (previewAudioRef.current.volume !== undefined) {
-            previewAudioRef.current.volume = editingSound.volume;
+            // APPLY MASTER VOLUME TO PREVIEW AS WELL
+            previewAudioRef.current.volume = editingSound.volume * masterVolume;
         }
     }
-  }, [editingSound]);
+  }, [editingSound, masterVolume]);
 
   useEffect(() => {
     if (statusMsg) {
@@ -194,33 +205,62 @@ export default function SoundboardApp() {
     }
   }, [statusMsg]);
 
-  // --- LIVE VOLUME UPDATE ---
+  // --- LIVE VOLUME UPDATE (True Master Gain Implementation) ---
   useEffect(() => {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
-    sounds.forEach(sound => {
-        const targetVol = sound.volume * masterVolume;
+    // 1. UPDATE GLOBAL MASTER GAIN (Handles all One-Shot sounds instantly)
+    // This physically cuts the output wire if volume is 0.
+    if (ctx.masterGain) {
+        // Fast smoothing (0.015s) for responsive feel without clicking
+        ctx.masterGain.gain.setTargetAtTime(masterVolume, now, 0.015);
+        
+        // Hard cut if 0 to avoid floating point leak
+        if (masterVolume === 0) {
+            ctx.masterGain.gain.setValueAtTime(0, now + 0.05); 
+        }
+    }
 
-        // 1. Update HTML Audio Elements (Toggles)
+    // 2. UPDATE INDIVIDUAL SOUNDS
+    sounds.forEach(sound => {
+        // A. HTML Audio Elements (Toggle Sounds)
+        // These don't go through the masterGain node, so we calculate manually.
         const audioEl = activeElementsRef.current[sound.id];
         if (audioEl) {
+            // Only update if not actively fading. 
+            // FIX: Added logic elsewhere to ensure _fadeInterval is cleared properly so this block runs.
             if (!audioEl._fadeInterval) {
-               audioEl.volume = targetVol;
+               const calculatedVol = sound.volume * masterVolume;
+               // Force 0 if very small to prevent whispering
+               const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
+               // Only set if different to avoid spamming the element
+               if (Math.abs(audioEl.volume - finalVol) > 0.001) {
+                  audioEl.volume = finalVol;
+               }
             }
         }
 
-        // 2. Update Web Audio Gain Nodes (One-Shots)
+        // B. Web Audio One-Shots (Individual Nodes)
         const sources = activeSourcesRef.current[sound.id];
         if (sources) {
             sources.forEach(({ gainNode }) => {
                 try {
-                    gainNode.gain.setTargetAtTime(targetVol, now, 0.05); 
+                    // Update the sound's specific volume (e.g. if you edited the clip volume)
+                    // Master volume is already applied via ctx.masterGain
+                    gainNode.gain.setTargetAtTime(sound.volume, now, 0.05); 
                 } catch(e) {}
             });
         }
     });
-  }, [masterVolume, sounds]);
+    
+    // Also update preview audio if playing
+    if (previewAudioRef.current && isPreviewPlaying && editingSound) {
+         const pVol = editingSound.volume * masterVolume;
+         previewAudioRef.current.volume = pVol < 0.001 ? 0 : pVol;
+    }
+
+  }, [masterVolume, sounds, editingSound, isPreviewPlaying]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -254,8 +294,40 @@ export default function SoundboardApp() {
       }));
   };
 
+  const toggleGlobalPause = async () => {
+      const ctx = getAudioContext();
+      if (isGlobalPaused) {
+          // RESUME
+          if (ctx.state === 'suspended') await ctx.resume();
+          pausedHtmlAudioRef.current.forEach(id => {
+              const audio = activeElementsRef.current[id];
+              if (audio) {
+                  audio.play().catch(e => console.error("Resume error", e));
+              }
+          });
+          pausedHtmlAudioRef.current.clear();
+          setIsGlobalPaused(false);
+      } else {
+          // PAUSE
+          await ctx.suspend();
+          Object.entries(activeElementsRef.current).forEach(([id, audio]) => {
+              if (audio && !audio.paused) {
+                  audio.pause();
+                  pausedHtmlAudioRef.current.add(id);
+              }
+          });
+          setIsGlobalPaused(true);
+      }
+  };
+
   // --- AUDIO LOGIC ---
   const playSound = useCallback(async (id) => {
+    // If the board is paused, triggering a NEW sound should unpause everything
+    // This prevents confusion where you click and nothing happens
+    if (isGlobalPaused) {
+        await toggleGlobalPause();
+    }
+
     const sound = sounds.find(s => s.id === id);
     if (!sound) return;
 
@@ -266,11 +338,14 @@ export default function SoundboardApp() {
        const osc = ctx.createOscillator();
        const gain = ctx.createGain();
        osc.connect(gain);
-       gain.connect(ctx.destination);
+       // Route through Master Gain
+       gain.connect(ctx.masterGain);
+       
        osc.frequency.setValueAtTime(440, ctx.currentTime);
        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
        
-       const beepVol = 0.3 * sound.volume * masterVolume;
+       // Use sound.volume directly (MasterGain handles the master volume)
+       const beepVol = 0.3 * sound.volume;
        gain.gain.setValueAtTime(beepVol, ctx.currentTime);
        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
        
@@ -286,7 +361,9 @@ export default function SoundboardApp() {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
 
-    const targetVol = sound.volume * masterVolume;
+    // For Toggles (HTML Audio), we must calculate master volume manually
+    // because they don't flow through the Web Audio Master Gain Node.
+    const toggleTargetVol = sound.volume * masterVolume;
 
     // --- MODE 1: TOGGLE ---
     if (sound.mode === 'toggle') {
@@ -308,6 +385,7 @@ export default function SoundboardApp() {
                          audio.pause();
                          audio.currentTime = 0;
                          clearInterval(fadeInterval);
+                         audio._fadeInterval = null; // FIX: Ensure this is cleared
                          updateVisualState(id, 'reset');
                      }
                  }, stepTime);
@@ -326,11 +404,17 @@ export default function SoundboardApp() {
             audio.onended = () => updateVisualState(id, 'reset');
         }
 
-        if (audio._fadeInterval) clearInterval(audio._fadeInterval);
+        if (audio._fadeInterval) {
+            clearInterval(audio._fadeInterval);
+            audio._fadeInterval = null; // FIX: Ensure this is cleared
+        }
         
         audio.loop = sound.loop;
         audio.currentTime = 0;
         
+        // Apply manual master volume calculation for toggles
+        const safeVol = toggleTargetVol < 0.001 ? 0 : toggleTargetVol;
+
         const fadeTime = (sound.fadeIn || 0) * 1000;
         if (fadeTime > 0) {
             audio.volume = 0;
@@ -339,27 +423,28 @@ export default function SoundboardApp() {
             
             const steps = 20;
             const stepTime = fadeTime / steps;
-            const volStep = targetVol / steps;
+            const volStep = safeVol / steps;
             
             let currentVol = 0;
             const fadeInterval = setInterval(() => {
                 currentVol += volStep;
-                if (currentVol >= targetVol) {
-                    audio.volume = targetVol;
+                if (currentVol >= safeVol) {
+                    audio.volume = safeVol;
                     clearInterval(fadeInterval);
+                    audio._fadeInterval = null; // FIX: Ensure this is cleared
                 } else {
                     audio.volume = currentVol;
                 }
             }, stepTime);
             audio._fadeInterval = fadeInterval;
         } else {
-            audio.volume = targetVol;
+            audio.volume = safeVol;
             audio.play().catch(e => console.error(e));
             updateVisualState(id, true);
         }
     } 
     
-    // --- MODE 2: ONE-SHOT ---
+    // --- MODE 2: ONE-SHOT (Web Audio) ---
     else {
         if (sound.overlap === false) {
              const existingSources = activeSourcesRef.current[id];
@@ -398,16 +483,23 @@ export default function SoundboardApp() {
 
         const gainNode = ctx.createGain();
         source.connect(gainNode);
-        gainNode.connect(ctx.destination);
+        
+        // Route through GLOBAL MASTER GAIN instead of destination
+        // This ensures the Master Slider controls everything absolutely
+        gainNode.connect(ctx.masterGain);
 
         const now = ctx.currentTime;
         const fadeIn = sound.fadeIn || 0;
         
+        // Note: We use sound.volume here, NOT sound.volume * masterVolume
+        // because the Master Gain node handles the multiplication for us.
+        const oneShotTargetVol = sound.volume;
+
         if (fadeIn > 0) {
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(targetVol, now + fadeIn);
+            gainNode.gain.linearRampToValueAtTime(oneShotTargetVol, now + fadeIn);
         } else {
-            gainNode.gain.setValueAtTime(targetVol, now);
+            gainNode.gain.setValueAtTime(oneShotTargetVol, now);
         }
 
         source.start(now);
@@ -424,17 +516,25 @@ export default function SoundboardApp() {
         };
     }
 
-  }, [sounds, masterVolume]);
+  }, [sounds, masterVolume, isGlobalPaused]);
 
   const stopAll = () => {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
+    // Reset Global Pause state so we don't get stuck
+    setIsGlobalPaused(false);
+    pausedHtmlAudioRef.current.clear();
+    if (ctx.state === 'suspended') ctx.resume();
+
     Object.values(activeElementsRef.current).forEach(audio => {
         if (audio) {
             audio.pause();
             audio.currentTime = 0;
-            if (audio._fadeInterval) clearInterval(audio._fadeInterval);
+            if (audio._fadeInterval) {
+                clearInterval(audio._fadeInterval);
+                audio._fadeInterval = null; // FIX: Ensure this is cleared
+            }
         }
     });
 
@@ -483,7 +583,7 @@ export default function SoundboardApp() {
 
   const exportConfig = async () => {
     setIsLoading(true);
-    setStatusMsg("Packing Audio...");
+    setStatusMsg("Packing & Compressing...");
     
     setTimeout(async () => {
       try {
@@ -494,16 +594,31 @@ export default function SoundboardApp() {
         }));
 
         const jsonString = JSON.stringify(serializedSounds);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
+        let blob;
+        let filename = "tenshon_tiler_data.json";
+
+        // OPTIMIZATION: GZIP Compression for .ttsave
+        if ('CompressionStream' in window) {
+            try {
+                const stream = new Blob([jsonString]).stream();
+                const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
+                const response = await new Response(compressedStream);
+                blob = await response.blob();
+                filename = "tenshon_tiler_save.ttsave";
+            } catch (e) {
+                console.warn("Compression failed, falling back to JSON", e);
+                blob = new Blob([jsonString], { type: "application/json" });
+            }
+        } else {
+            blob = new Blob([jsonString], { type: "application/json" });
+        }
         
         const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", url);
-        downloadAnchorNode.setAttribute("download", "soundboard_save.json");
+        downloadAnchorNode.setAttribute("href", URL.createObjectURL(blob));
+        downloadAnchorNode.setAttribute("download", filename);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
-        URL.revokeObjectURL(url);
         
         setStatusMsg("Export Successful!");
       } catch (err) {
@@ -519,30 +634,48 @@ export default function SoundboardApp() {
     if (!file) return;
 
     setIsLoading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const importedSounds = JSON.parse(e.target.result);
-        if (Array.isArray(importedSounds)) {
-          stopAll();
-          bufferCacheRef.current = {};
-          sounds.forEach(s => {
-             if (s.src.startsWith('blob:')) URL.revokeObjectURL(s.src);
-             if (s.image && s.image.startsWith('blob:')) URL.revokeObjectURL(s.image);
-          });
-          setSounds(importedSounds);
-          setSelectedCategory('All');
-          setStatusMsg("Import Successful!");
-        } else {
-          setStatusMsg("Error: Invalid JSON");
+    
+    const processImport = async () => {
+        try {
+            let jsonString;
+            
+            // Try to detect compression based on extension or try decompression
+            if (file.name.endsWith('.ttsave') && 'DecompressionStream' in window) {
+                 try {
+                     const stream = file.stream();
+                     const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+                     const response = await new Response(decompressedStream);
+                     jsonString = await response.text();
+                 } catch (e) {
+                     console.warn("Decompression failed, trying plain text", e);
+                     jsonString = await file.text();
+                 }
+            } else {
+                 jsonString = await file.text();
+            }
+
+            const importedSounds = JSON.parse(jsonString);
+            if (Array.isArray(importedSounds)) {
+                stopAll();
+                bufferCacheRef.current = {};
+                sounds.forEach(s => {
+                    if (s.src.startsWith('blob:')) URL.revokeObjectURL(s.src);
+                    if (s.image && s.image.startsWith('blob:')) URL.revokeObjectURL(s.image);
+                });
+                setSounds(importedSounds);
+                setSelectedCategory('All');
+                setStatusMsg("Import Successful!");
+            } else {
+                setStatusMsg("Error: Invalid Format");
+            }
+        } catch (err) {
+            console.error(err);
+            setStatusMsg("Error: Corrupt File");
         }
-      } catch (err) {
-        console.error(err);
-        setStatusMsg("Error: Invalid File");
-      }
-      setIsLoading(false);
+        setIsLoading(false);
     };
-    reader.readAsText(file);
+
+    processImport();
     event.target.value = ''; 
   };
 
@@ -561,11 +694,12 @@ export default function SoundboardApp() {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(ctx.masterGain); // Connect to master gain
         osc.frequency.setValueAtTime(440, ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
         
-        const beepVol = 0.3 * editingSound.volume;
+        // Just sound volume, master handled by masterGain
+        const beepVol = 0.3 * editingSound.volume; 
         gain.gain.setValueAtTime(beepVol, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
         
@@ -579,7 +713,10 @@ export default function SoundboardApp() {
         previewAudioRef.current = new Audio(editingSound.src);
         previewAudioRef.current.onended = () => setIsPreviewPlaying(false);
       }
-      previewAudioRef.current.volume = editingSound.volume;
+      
+      const pVol = editingSound.volume * masterVolume; // Manual calc for preview
+      previewAudioRef.current.volume = pVol < 0.001 ? 0 : pVol;
+      
       previewAudioRef.current.play().catch(console.error);
       setIsPreviewPlaying(true);
     }
@@ -656,9 +793,9 @@ export default function SoundboardApp() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-900 pb-20">
       
-      <input type="file" accept=".json" ref={fileInputRef} onChange={importConfig} className="hidden" />
+      <input type="file" accept=".json,.ttsave" ref={fileInputRef} onChange={importConfig} className="hidden" />
 
-      <header className="border-b border-slate-700 bg-slate-800/50 backdrop-blur-md sticky top-0 z-30 shadow-lg">
+      <header className="border-b border-slate-700 bg-slate-800/50 backdrop-blur-md sticky top-0 z-40 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4">
           
           <div className="flex flex-col lg:flex-row items-center gap-4">
@@ -700,7 +837,7 @@ export default function SoundboardApp() {
             </div>
 
             {/* 2. CONTROLS BAR (Volume Left - Buttons Right) */}
-            <div className="flex items-center justify-between w-full lg:flex-1 lg:ml-4">
+            <div className="flex flex-wrap items-center justify-between w-full lg:flex-1 lg:ml-4 gap-y-2">
                 
                 {/* LEFT: Volume */}
                 <div className="flex items-center gap-3 bg-slate-800 p-2 rounded-lg border border-slate-700 flex-none shadow-inner">
@@ -716,7 +853,7 @@ export default function SoundboardApp() {
                 </div>
 
                 {/* RIGHT: Actions */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4 ml-auto sm:ml-0">
                     
                     {/* Desktop Import/Export */}
                     <div className="hidden lg:flex items-center gap-1 border-r border-slate-700 pr-4">
@@ -735,22 +872,38 @@ export default function SoundboardApp() {
                         </button>
                     </div>
 
-                    <button 
-                      onClick={stopAll}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group"
-                    >
-                      <Square className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
-                      <span className="hidden sm:inline">Stop All</span>
-                      {globalPlayCount > 0 && (
-                         <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm animate-pulse">
-                           {globalPlayCount}
-                         </span>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* PAUSE / RESUME BUTTON */}
+                        <button
+                          onClick={toggleGlobalPause}
+                          className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group border
+                            ${isGlobalPaused 
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30' 
+                              : 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600 hover:text-white'}
+                          `}
+                          title={isGlobalPaused ? "Resume All Sounds" : "Pause All Sounds"}
+                        >
+                          {isGlobalPaused ? <Play className="w-4 h-4 fill-current" /> : <Pause className="w-4 h-4 fill-current" />}
+                          <span className="hidden sm:inline">{isGlobalPaused ? "Resume" : "Pause"}</span>
+                        </button>
+
+                        <button 
+                          onClick={stopAll}
+                          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group"
+                        >
+                          <Square className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline">Stop All</span>
+                          {globalPlayCount > 0 && (
+                              <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm animate-pulse">
+                                {globalPlayCount}
+                              </span>
+                          )}
+                        </button>
+                    </div>
 
                     <button 
                       onClick={() => setIsEditMode(!isEditMode)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all border font-medium ${isEditMode ? 'bg-cyan-500 text-slate-900 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-400'}`}
+                      className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all border font-medium ${isEditMode ? 'bg-cyan-500 text-slate-900 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-400'}`}
                       title="Toggle Edit Mode"
                     >
                       <Settings className="w-4 h-4" />
@@ -819,8 +972,8 @@ export default function SoundboardApp() {
                     ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
                     ${isActive 
                         ? (sound.image 
-                            ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]' 
-                            : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`) 
+                           ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]' 
+                           : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`) 
                         : ''}
                   `}
                 >
@@ -830,8 +983,8 @@ export default function SoundboardApp() {
 
                   {isActive && (
                       <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                          <div className="bg-black/60 backdrop-blur-sm rounded-full p-3 animate-pulse border border-white/20">
-                              <Activity className="w-8 h-8 text-cyan-400" />
+                          <div className={`bg-black/60 backdrop-blur-sm rounded-full p-3 border border-white/20 ${!isGlobalPaused && 'animate-pulse'}`}>
+                              {isGlobalPaused ? <Pause className="w-8 h-8 text-amber-400" /> : <Activity className="w-8 h-8 text-cyan-400" />}
                           </div>
                       </div>
                   )}
@@ -858,7 +1011,9 @@ export default function SoundboardApp() {
                   </div>
                   
                   <div className="w-full relative z-20 mt-auto">
-                    {isActive && <div className="text-[10px] font-bold text-cyan-300 animate-pulse mb-1 tracking-widest uppercase">PLAYING</div>}
+                    {isActive && <div className={`text-[10px] font-bold ${isGlobalPaused ? 'text-amber-400' : 'text-cyan-300 animate-pulse'} mb-1 tracking-widest uppercase`}>
+                        {isGlobalPaused ? 'PAUSED' : 'PLAYING'}
+                    </div>}
                     <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
                       {sound.category || 'General'}
                     </p>
@@ -868,7 +1023,7 @@ export default function SoundboardApp() {
                   </div>
 
                   {isActive && !sound.image && (
-                    <div className="absolute inset-0 bg-white/20 animate-pulse z-0"></div>
+                    <div className={`absolute inset-0 bg-white/20 ${!isGlobalPaused && 'animate-pulse'} z-0`}></div>
                   )}
                 </button>
 
@@ -921,14 +1076,14 @@ export default function SoundboardApp() {
              <div className="space-y-3">
                 {APP_CONFIG.credits.links.github && (
                   <a href={APP_CONFIG.credits.links.github} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors font-medium text-white group">
-                     <Github className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
-                     Visit GitHub
+                      <Github className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                      Visit GitHub
                   </a>
                 )}
                 {APP_CONFIG.credits.links.kofi && (
                   <a href={APP_CONFIG.credits.links.kofi} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-[#FF5E5B] hover:bg-[#ff4f4c] rounded-xl transition-colors font-medium text-white group">
-                     <Coffee className="w-5 h-5 text-white group-hover:rotate-12 transition-transform" />
-                     Support on Ko-fi
+                      <Coffee className="w-5 h-5 text-white group-hover:rotate-12 transition-transform" />
+                      Support on Ko-fi
                   </a>
                 )}
              </div>
@@ -1138,16 +1293,16 @@ export default function SoundboardApp() {
                   {editingSound.mode === 'restart' && (
                      <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
                         <button 
-                            onClick={() => setEditingSound({...editingSound, overlap: true})} 
-                            className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                            title="Stack sounds on top of each other"
+                           onClick={() => setEditingSound({...editingSound, overlap: true})} 
+                           className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                           title="Stack sounds on top of each other"
                         >
                             <Layers className="w-3 h-3" /> Overlap
                         </button>
                         <button 
-                            onClick={() => setEditingSound({...editingSound, overlap: false})} 
-                            className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${!editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                            title="Stop previous sound when pressed again"
+                           onClick={() => setEditingSound({...editingSound, overlap: false})} 
+                           className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${!editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                           title="Stop previous sound when pressed again"
                         >
                             <Scissors className="w-3 h-3" /> Cut
                         </button>
