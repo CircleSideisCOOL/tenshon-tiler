@@ -13,7 +13,7 @@ const APP_CONFIG = {
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
-  favicon: "/android-chrome-192x192.png",  
+  favicon: "tiler.png",  
 
   // 3. Credits Popup Info
   credits: {
