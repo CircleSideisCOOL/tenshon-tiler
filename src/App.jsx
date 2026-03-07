@@ -5,6 +5,9 @@ import {
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power,
   Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare
 } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // --- 🔧 CONFIGURATION: EDIT THIS SECTION 🔧 ---
 const APP_CONFIG = {
@@ -118,6 +121,156 @@ const loadFromDB = async (key) => {
   }
 };
 
+function SortableCategory({ category, selectedCategory, setSelectedCategory, isEditMode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: category,
+    disabled: !isEditMode || category === 'All'
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <button
+        onClick={() => setSelectedCategory(category)}
+        {...listeners}
+        className={`
+          px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border
+          ${selectedCategory === category
+            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+            : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
+          ${isEditMode && category !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none' : ''}
+        `}
+      >
+        {category}
+      </button>
+    </div>
+  );
+}
+
+function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSound, openEditModal }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: sound.id,
+    disabled: !isEditMode
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 1,
+    position: 'relative',
+    height: '100%',
+    touchAction: 'none'
+  };
+
+  const color = COLORS[sound.color] || COLORS[0];
+  const bgStyle = sound.image ? {
+    backgroundImage: `url(${sound.image})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  } : {};
+
+  const ModeIcon = sound.mode === 'toggle' ? Power : (sound.overlap ? Layers : Scissors);
+  const modeLabel = sound.mode === 'toggle' ? 'Toggle' : (sound.overlap ? 'Overlap' : 'Cut');
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} className="h-full group">
+      <div
+        className="h-full w-full relative"
+        {...(isEditMode ? listeners : {})}
+      >
+        <button
+          onClick={() => !isEditMode && playSound(sound.id)}
+          style={bgStyle}
+          className={`
+            w-full aspect-square rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
+            transition-none duration-100 ease-out border-b-4 shadow-lg
+            ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
+            ${!isEditMode && 'active:border-b-0 active:translate-y-1'}
+            ${isEditMode ? 'cursor-grab active:cursor-grabbing hover:ring-4 ring-cyan-500' : ''}
+            ${isActive && !isEditMode
+              ? (sound.image
+                ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]'
+                : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`)
+              : ''}
+          `}
+        >
+          {sound.image && (
+            <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity ${isActive ? 'opacity-80' : 'opacity-60'}`} />
+          )}
+
+          {isActive && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+              <div className={`bg-black/60 backdrop-blur-sm rounded-full p-3 border border-white/20 ${!isGlobalPaused && 'animate-pulse'}`}>
+                {isGlobalPaused ? <Pause className="w-8 h-8 text-amber-400" /> : <Activity className="w-8 h-8 text-cyan-400" />}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between items-start w-full relative z-20 pointer-events-none">
+            <div className="flex gap-1">
+              <div className={`p-1 rounded flex items-center gap-1 ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title={modeLabel}>
+                <ModeIcon className="w-3 h-3" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  {sound.mode === 'toggle' ? 'TOGGLE' : (sound.overlap ? 'OVERLAP' : 'CUT')}
+                </span>
+              </div>
+              {sound.loop && (
+                <div className={`p-1 rounded ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title="Looping">
+                  <Repeat className="w-3 h-3" />
+                </div>
+              )}
+            </div>
+            {sound.keybind && (
+              <span className="bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded text-xs font-bold font-mono text-white border border-white/10">
+                {sound.keybind}
+              </span>
+            )}
+          </div>
+
+          <div className="w-full relative z-20 mt-auto pointer-events-none">
+            {isActive && <div className={`text-[10px] font-bold ${isGlobalPaused ? 'text-amber-400' : 'text-cyan-300 animate-pulse'} mb-1 tracking-widest uppercase`}>
+              {isGlobalPaused ? 'PAUSED' : 'PLAYING'}
+            </div>}
+            <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
+              {sound.category || 'General'}
+            </p>
+            <h3 className={`font-bold text-lg leading-tight text-white drop-shadow-md ${sound.note ? 'truncate' : 'line-clamp-2'}`}>
+              {sound.name}
+            </h3>
+            {sound.note && (
+              <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 italic font-medium ${sound.image ? 'text-white drop-shadow-md' : 'text-white/80 mix-blend-screen'}`}>
+                {sound.note}
+              </p>
+            )}
+          </div>
+
+          {isActive && !sound.image && (
+            <div className={`absolute inset-0 bg-white/20 ${!isGlobalPaused && 'animate-pulse'} z-0`}></div>
+          )}
+        </button>
+
+        {isEditMode && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); openEditModal(sound); }}
+            className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30"
+          >
+            <div className="bg-slate-800 p-3 rounded-full border border-slate-600 hover:scale-110 transition-transform shadow-xl pointer-events-auto cursor-pointer">
+              <Settings className="w-8 h-8 text-cyan-400" />
+            </div>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function SoundboardApp() {
   const [sounds, setSounds] = useState([
@@ -192,6 +345,7 @@ export default function SoundboardApp() {
   const [statusMsg, setStatusMsg] = useState('');
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
 
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -239,6 +393,12 @@ export default function SoundboardApp() {
       if (savedSounds && savedSounds.length > 0) {
         setSounds(savedSounds);
       }
+
+      const savedCategoryOrder = await loadFromDB('customCategoryOrder');
+      if (savedCategoryOrder) {
+        setCustomCategoryOrder(savedCategoryOrder);
+      }
+
       setIsLoaded(true);
     };
     loadState();
@@ -256,6 +416,7 @@ export default function SoundboardApp() {
         return { ...sound, src, image };
       }));
       saveToDB('sounds', serializedSounds);
+      saveToDB('customCategoryOrder', customCategoryOrder);
     }, 1500);
     return () => clearTimeout(timer);
   }, [sounds, masterVolume, isLoaded]);
@@ -1038,10 +1199,49 @@ export default function SoundboardApp() {
     setShowModal(true);
   };
 
-  const categories = ['All', ...new Set(sounds.map(s => s.category || 'General'))].sort();
+  const uniqueCats = ['All', ...new Set(sounds.map(s => s.category || 'General'))].sort();
+  const categories = uniqueCats.sort((a, b) => {
+    if (a === 'All') return -1;
+    if (b === 'All') return 1;
+    const indexA = customCategoryOrder.indexOf(a);
+    const indexB = customCategoryOrder.indexOf(b);
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
   const filteredSounds = sounds.filter(s =>
     (selectedCategory === 'All' || (s.category || 'General') === selectedCategory) && s.id !== 'tutorial-demo'
   );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEndCategories = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id && over.id !== 'All') {
+      const oldItems = [...categories].filter(c => c !== 'All');
+      const activeIndex = oldItems.indexOf(active.id);
+      const overIndex = oldItems.indexOf(over.id);
+      if (activeIndex !== -1 && overIndex !== -1) {
+        setCustomCategoryOrder(arrayMove(oldItems, activeIndex, overIndex));
+      }
+    }
+  };
+
+  const handleDragEndSounds = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSounds((items) => {
+        const oldIndex = items.findIndex(item => item.id === active.id);
+        const newIndex = items.findIndex(item => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-900 pb-20">
@@ -1180,20 +1380,19 @@ export default function SoundboardApp() {
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`
-                  px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border
-                  ${selectedCategory === cat
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
-                `}
-              >
-                {cat}
-              </button>
-            ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCategories}>
+              <SortableContext items={categories} strategy={horizontalListSortingStrategy}>
+                {categories.map(cat => (
+                  <SortableCategory
+                    key={cat}
+                    category={cat}
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    isEditMode={isEditMode}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
 
         </div>
@@ -1213,113 +1412,33 @@ export default function SoundboardApp() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
 
           {/* Sound Pads */}
-          {filteredSounds.map((sound) => {
-            const color = COLORS[sound.color] || COLORS[0];
-            const isActive = activeSounds[sound.id];
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndSounds}>
+            <SortableContext items={filteredSounds.map(s => s.id)} strategy={rectSortingStrategy}>
+              {filteredSounds.map((sound) => (
+                <SortableSoundTile
+                  key={sound.id}
+                  sound={sound}
+                  isEditMode={isEditMode}
+                  isActive={activeSounds[sound.id]}
+                  isGlobalPaused={isGlobalPaused}
+                  playSound={playSound}
+                  openEditModal={openEditModal}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
 
-            const bgStyle = sound.image ? {
-              backgroundImage: `url(${sound.image})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            } : {};
-
-            const ModeIcon = sound.mode === 'toggle' ? Power : (sound.overlap ? Layers : Scissors);
-            const modeLabel = sound.mode === 'toggle' ? 'Toggle' : (sound.overlap ? 'Overlap' : 'Cut');
-
-            return (
-              <div key={sound.id} className="relative group h-full">
-                <button
-                  onClick={() => playSound(sound.id)}
-                  style={bgStyle}
-                  className={`
-                    w-full aspect-square rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
-                    transition-all duration-100 ease-out border-b-4 active:border-b-0 active:translate-y-1 shadow-lg
-                    ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
-                    ${isActive
-                      ? (sound.image
-                        ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]'
-                        : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`)
-                      : ''}
-                  `}
-                >
-                  {sound.image && (
-                    <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity ${isActive ? 'opacity-80' : 'opacity-60'}`} />
-                  )}
-
-                  {isActive && (
-                    <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                      <div className={`bg-black/60 backdrop-blur-sm rounded-full p-3 border border-white/20 ${!isGlobalPaused && 'animate-pulse'}`}>
-                        {isGlobalPaused ? <Pause className="w-8 h-8 text-amber-400" /> : <Activity className="w-8 h-8 text-cyan-400" />}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-start w-full relative z-20">
-                    <div className="flex gap-1">
-                      <div className={`p-1 rounded flex items-center gap-1 ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title={modeLabel}>
-                        <ModeIcon className="w-3 h-3" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">
-                          {sound.mode === 'toggle' ? 'TOGGLE' : (sound.overlap ? 'OVERLAP' : 'CUT')}
-                        </span>
-                      </div>
-                      {sound.loop && (
-                        <div className={`p-1 rounded ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title="Looping">
-                          <Repeat className="w-3 h-3" />
-                        </div>
-                      )}
-                    </div>
-                    {sound.keybind && (
-                      <span className="bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded text-xs font-bold font-mono text-white border border-white/10">
-                        {sound.keybind}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="w-full relative z-20 mt-auto">
-                    {isActive && <div className={`text-[10px] font-bold ${isGlobalPaused ? 'text-amber-400' : 'text-cyan-300 animate-pulse'} mb-1 tracking-widest uppercase`}>
-                      {isGlobalPaused ? 'PAUSED' : 'PLAYING'}
-                    </div>}
-                    <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
-                      {sound.category || 'General'}
-                    </p>
-                    <h3 className={`font-bold text-lg leading-tight text-white drop-shadow-md ${sound.note ? 'truncate' : 'line-clamp-2'}`}>
-                      {sound.name}
-                    </h3>
-                    {sound.note && (
-                      <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 italic font-medium ${sound.image ? 'text-white drop-shadow-md' : 'text-white/80 mix-blend-screen'}`}>
-                        {sound.note}
-                      </p>
-                    )}
-                  </div>
-
-                  {isActive && !sound.image && (
-                    <div className={`absolute inset-0 bg-white/20 ${!isGlobalPaused && 'animate-pulse'} z-0`}></div>
-                  )}
-                </button>
-
-                {isEditMode && (
-                  <button
-                    onClick={() => openEditModal(sound)}
-                    className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30"
-                  >
-                    <div className="bg-slate-800 p-3 rounded-full border border-slate-600 hover:scale-110 transition-transform shadow-xl">
-                      <MoreVertical className="w-6 h-6 text-white" />
-                    </div>
-                  </button>
-                )}
+          {isEditMode && (
+            <button
+              onClick={openNewSoundModal}
+              className="aspect-square rounded-2xl border-2 border-dashed border-slate-700 hover:border-cyan-500/50 hover:bg-slate-800/50 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-cyan-400 transition-all group"
+            >
+              <div className="p-3 rounded-full bg-slate-800 group-hover:bg-slate-700 transition-colors">
+                <Plus className="w-8 h-8" />
               </div>
-            );
-          })}
-
-          <button
-            onClick={openNewSoundModal}
-            className="aspect-square rounded-2xl border-2 border-dashed border-slate-700 hover:border-cyan-500/50 hover:bg-slate-800/50 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-cyan-400 transition-all group"
-          >
-            <div className="p-3 rounded-full bg-slate-800 group-hover:bg-slate-700 transition-colors">
-              <Plus className="w-8 h-8" />
-            </div>
-            <span className="font-medium text-sm">Add Sound</span>
-          </button>
+              <span className="font-medium text-sm">Add Sound</span>
+            </button>
+          )}
         </div>
       </main>
 
@@ -1389,709 +1508,714 @@ export default function SoundboardApp() {
             </div>
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Tutorial Modal */}
-      {showTutorial && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowTutorial(false)}>
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+      {
+        showTutorial && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowTutorial(false)}>
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
 
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-cyan-500/10 rounded-lg">
-                  <BookOpen className="w-6 h-6 text-cyan-400" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Application Tutorial</h2>
-                  <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Getting Started Guide</p>
-                </div>
-              </div>
-              <button onClick={() => setShowTutorial(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto custom-scrollbar space-y-10 selection:bg-cyan-500/30">
-
-              {/* Introduction */}
-              <section className="space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-wider">
-                  <Sparkles className="w-3 h-3" /> Welcome
-                </div>
-                <h3 className="text-3xl font-black text-white italic">Tenshon Tiler 🎵</h3>
-                <p className="text-slate-400 leading-relaxed text-lg">
-                  A professional, web-based soundboard application designed for theater productions, live events, and podcasts.
-                  Experience zero-latency audio with a powerful custom engine.
-                </p>
-              </section>
-
-              {/* Features */}
-              <section className="space-y-6">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="h-px w-8 bg-slate-800"></div> Core Features
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { title: "Low Latency", desc: "Uses Web Audio API for instant response.", icon: Zap, color: "text-amber-400" },
-                    { title: "Machine Gun", desc: "Polyphonic support—spam keys without cuts.", icon: Activity, color: "text-cyan-400" },
-                    { title: "Fades & Loops", desc: "Smooth transitions up to 5s.", icon: Repeat, color: "text-indigo-400" },
-                    { title: "Customization", desc: "Upload your own images and colors.", icon: ImageIcon, color: "text-rose-400" }
-                  ].map((f, i) => (
-                    <div key={i} className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-slate-600 transition-colors">
-                      <f.icon className={`w-5 h-5 mb-2 ${f.color}`} />
-                      <h5 className="font-bold text-slate-200">{f.title}</h5>
-                      <p className="text-sm text-slate-400">{f.desc}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* How to Use */}
-              <section className="space-y-6">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="h-px w-8 bg-slate-800"></div> How To Use
-                </h4>
-                <div className="space-y-4">
-                  <div className="flex gap-4">
-                    <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">1</div>
-                    <div className="space-y-1">
-                      <p className="font-bold text-slate-200">Adding Sounds</p>
-                      <p className="text-sm text-slate-400">Click the <span className="text-cyan-400">+ Add Sound</span> button. Upload MP3/WAV, set a color, and assign a <span className="text-white font-mono">Keyboard Shortcut</span>.</p>
-                    </div>
+              <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-500/10 rounded-lg">
+                    <BookOpen className="w-6 h-6 text-cyan-400" />
                   </div>
-                  <div className="flex gap-4">
-                    <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">2</div>
-                    <div className="space-y-1">
-                      <p className="font-bold text-slate-200">Edit Mode</p>
-                      <p className="text-sm text-slate-400">Toggle <span className="text-cyan-400">Gear Icon ⚙️</span> to enter Edit Mode. Hover over tiles to adjust volume, fades, or playback modes.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">3</div>
-                    <div className="space-y-1">
-                      <p className="font-bold text-slate-200">Saving Your Board</p>
-                      <p className="text-sm text-slate-400">Use <span className="text-cyan-400">Export</span> to download your <span className="text-white font-mono">.ttsave</span> file. Everything is stored locally!</p>
-                    </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Application Tutorial</h2>
+                    <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Getting Started Guide</p>
                   </div>
                 </div>
-              </section>
-
-              {/* Playback Modes */}
-              <section className="space-y-6">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="h-px w-8 bg-slate-800"></div> Mode Examples
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-5 bg-amber-500/5 border border-amber-500/10 rounded-2xl space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-amber-400" />
-                      <h5 className="font-bold text-white uppercase text-xs tracking-widest">One-Shot Mode</h5>
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">Best for short, punchy sounds. High-performance "stacking" allows for rapid fire effects.</p>
-                    <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/10 mt-2 pt-3">
-                      <button
-                        onClick={() => playSound('tutorial-demo-1')}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-amber-500/20"
-                      >
-                        <Play className="w-3 h-3" /> Play SFX
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Power className="w-5 h-5 text-cyan-400" />
-                        <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
-                      </div>
-                      <div className="flex gap-1">
-                        <div className={`w-1.5 h-1.5 rounded-full ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-400 animate-pulse shadow-[0_0_5px_cyan]' : 'bg-slate-700'}`} />
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">Best for background audio. Press once to start, press again to stop with a smooth fade-out.</p>
-                    <div className="flex flex-wrap gap-2 pt-1 border-t border-cyan-500/10 mt-2 pt-3">
-                      <button
-                        onClick={() => playSound('tutorial-demo-2')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-500 text-slate-900 border-cyan-400' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30'}`}
-                      >
-                        <Power className="w-3 h-3" /> {activeSounds['tutorial-demo-2'] ? 'Stop Ambient' : 'Start Ambient'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Stack vs Cut */}
-              <section className="space-y-6">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="h-px w-8 bg-slate-800"></div> Overlay vs Cut
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-indigo-400" />
-                      <p className="text-xs font-bold text-slate-200">Overlay (Stacking)</p>
-                    </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">Sounds stack on each other. Spam the button to hear multiple beeps at once.</p>
-                    <button
-                      onClick={() => {
-                        setTutorialSound1(prev => ({ ...prev, overlap: true }));
-                        playSound('tutorial-demo-1');
-                      }}
-                      className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                    >
-                      Test Overlay
-                    </button>
-                  </div>
-                  <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-amber-400" />
-                      <p className="text-xs font-bold text-slate-200">Cut (Choke Group)</p>
-                    </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">New sound stops the old one instantly. No overlap, keeps things clean and tight.</p>
-                    <button
-                      onClick={() => {
-                        setTutorialSound1(prev => ({ ...prev, overlap: false }));
-                        playSound('tutorial-demo-1');
-                      }}
-                      className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                    >
-                      Test Cut
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {/* Edit Mode Demo Guide */}
-              <section className="space-y-6">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="h-px w-8 bg-slate-800"></div> Edit Mode Guide
-                </h4>
-                <div className="bg-slate-800/20 border border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Settings className="w-24 h-24" />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-400">
-                        <Settings className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-200 text-sm">1. Toggle Edit</p>
-                        <p className="text-xs text-slate-500 mt-1">Click the Gear icon in the header to enter Edit Mode.</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-                        <Activity className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-200 text-sm">2. Hover Tile</p>
-                        <p className="text-xs text-slate-500 mt-1">While in Edit Mode, hover over any sound board tile.</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-                        <MoreVertical className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-200 text-sm">3. Customize</p>
-                        <p className="text-xs text-slate-500 mt-1">Click the vertical dots icon to adjust volume, fades, and modes.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Edit Playground */}
-              <section className="p-6 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-6 shadow-inner">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                        <Sparkles className="w-4 h-4" /> Live Experiment (SFX)
-                      </h4>
-                      <p className="text-[11px] text-slate-500">Try changing the volume or color of the SFX sound!</p>
-                    </div>
-                    <button
-                      onClick={() => openEditModal(tutorialSound1)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
-                    >
-                      <Settings className="w-3.5 h-3.5" /> Edit SFX
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                    <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound1.color].class} flex items-center justify-center shadow-lg`}>
-                      <Music className="w-6 h-6 text-white/50" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-white">{tutorialSound1.name}</p>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound1.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => playSound('tutorial-demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
-                        <Play className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-6 border-t border-slate-700/50">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                        <Sparkles className="w-4 h-4" /> Live Experiment (Ambient)
-                      </h4>
-                      <p className="text-[11px] text-slate-500">Try changing the volume or color of the Ambient sound!</p>
-                    </div>
-                    <button
-                      onClick={() => openEditModal(tutorialSound2)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-cyan-500/20 hover:scale-105 transition-all active:scale-95"
-                    >
-                      <Settings className="w-3.5 h-3.5" /> Edit Ambient
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                    <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound2.color].class} flex items-center justify-center shadow-lg relative`}>
-                      <Music className="w-6 h-6 text-white/50" />
-                      {activeSounds['tutorial-demo-2'] && (
-                        <div className="absolute inset-0 bg-white/20 rounded-lg animate-pulse" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-white">{tutorialSound2.name}</p>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound2.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => playSound('tutorial-demo-2')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
-                        <Power className={`w-4 h-4 ${activeSounds['tutorial-demo-2'] ? 'text-amber-400' : ''}`} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-            </div>
-
-            <div className="p-6 border-t border-slate-800 bg-slate-800/50 flex justify-center">
-              <button
-                onClick={() => setShowTutorial(false)}
-                className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
-              >
-                Let's Go!
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {showModal && editingSound && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-800 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
-
-            <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
-              <h2 className="text-xl font-bold text-white">
-                {editingSound.id ? 'Edit Button' : 'New Button'}
-              </h2>
-              <div className="flex items-center gap-2">
-                {editingSound.id && editingSound.src && editingSound.src !== 'demo_beep' && !editingSound.id.startsWith('tutorial-demo') && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        let urlToDownload = editingSound.src;
-                        // Attempt to make sure it's downloadable if it's already a regular link
-                        // If it's data/blob, just use it
-                        const a = document.createElement('a');
-                        a.href = urlToDownload;
-                        a.download = `${editingSound.name || 'sound'}.mp3`; // Fallback extension
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                      } catch (e) {
-                        console.error("Download failed", e);
-                      }
-                    }}
-                    className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-slate-700 rounded-lg transition-colors"
-                    title="Download Individual Sound File"
-                  >
-                    <Download className="w-5 h-5" />
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-slate-400 hover:text-white transition-colors p-2"
-                >
+                <button onClick={() => setShowTutorial(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-            </div>
 
-            <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-10 selection:bg-cyan-500/30">
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-cyan-400 uppercase tracking-wide">1. Audio Source</label>
-                <div className="flex gap-4 items-start">
-                  <label className="flex-1 cursor-pointer group">
-                    <input type="file" accept="audio/*" onChange={(e) => handleFileSelect(e, 'audio')} className="hidden" />
-                    <div className="border border-slate-600 bg-slate-700/30 rounded-lg p-3 text-center hover:bg-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-3">
-                      <Upload className="w-5 h-5 text-slate-400 group-hover:text-cyan-400" />
-                      <span className="text-sm text-slate-300 truncate max-w-[200px]">
-                        {editingSound.src ? (editingSound.src === 'demo_beep' ? 'Using Demo Sound' : 'Audio Loaded') : 'Upload Audio File'}
-                      </span>
+                {/* Introduction */}
+                <section className="space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-wider">
+                    <Sparkles className="w-3 h-3" /> Welcome
+                  </div>
+                  <h3 className="text-3xl font-black text-white italic">Tenshon Tiler 🎵</h3>
+                  <p className="text-slate-400 leading-relaxed text-lg">
+                    A professional, web-based soundboard application designed for theater productions, live events, and podcasts.
+                    Experience zero-latency audio with a powerful custom engine.
+                  </p>
+                </section>
+
+                {/* Features */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> Core Features
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { title: "Low Latency", desc: "Uses Web Audio API for instant response.", icon: Zap, color: "text-amber-400" },
+                      { title: "Machine Gun", desc: "Polyphonic support—spam keys without cuts.", icon: Activity, color: "text-cyan-400" },
+                      { title: "Fades & Loops", desc: "Smooth transitions up to 5s.", icon: Repeat, color: "text-indigo-400" },
+                      { title: "Customization", desc: "Upload your own images and colors.", icon: ImageIcon, color: "text-rose-400" }
+                    ].map((f, i) => (
+                      <div key={i} className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-slate-600 transition-colors">
+                        <f.icon className={`w-5 h-5 mb-2 ${f.color}`} />
+                        <h5 className="font-bold text-slate-200">{f.title}</h5>
+                        <p className="text-sm text-slate-400">{f.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* How to Use */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> How To Use
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">1</div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Adding Sounds</p>
+                        <p className="text-sm text-slate-400">Click the <span className="text-cyan-400">+ Add Sound</span> button. Upload MP3/WAV, set a color, and assign a <span className="text-white font-mono">Keyboard Shortcut</span>.</p>
+                      </div>
                     </div>
-                  </label>
-                  {editingSound.src && (
-                    <button
-                      onClick={togglePreview}
-                      className={`p-3 rounded-lg transition-colors border border-slate-600 ${isPreviewPlaying ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-700 hover:bg-cyan-600 text-white'}`}
-                      title={isPreviewPlaying ? "Stop" : "Preview"}
-                    >
-                      {isPreviewPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5" />}
-                    </button>
-                  )}
-                </div>
-                {editingSound.src && (
-                  <button onClick={() => {
-                    setEditingSound({ ...editingSound, src: '', name: editingSound.name || '' });
-                    if (previewAudioRef.current) { previewAudioRef.current.pause(); setIsPreviewPlaying(false); }
-                  }} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
-                    Remove Audio
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-400">Name</label>
-                  <input
-                    type="text"
-                    value={editingSound.name}
-                    onChange={e => setEditingSound({ ...editingSound, name: e.target.value })}
-                    placeholder="e.g. Sword Clang"
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-400">Category</label>
-                  <input
-                    type="text"
-                    list="category-suggestions"
-                    value={editingSound.category}
-                    onChange={e => setEditingSound({ ...editingSound, category: e.target.value })}
-                    placeholder="e.g. Act 1"
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
-                  />
-                  <datalist id="category-suggestions">
-                    {categories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
-                  </datalist>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
-                  <MessageSquare className="w-4 h-4" /> Notes & Cues
-                </label>
-                <textarea
-                  value={editingSound.note || ''}
-                  onChange={e => setEditingSound({ ...editingSound, note: e.target.value })}
-                  placeholder="e.g. Play this when she says '...'"
-                  className="w-full h-16 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-none custom-scrollbar"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-cyan-400 uppercase tracking-wide">2. Appearance</label>
-
-                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && COLORS[editingSound.color].class}`}>
-                      {editingSound.image ? (
-                        <img src={editingSound.image} alt="Preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <ImageIcon className="w-6 h-6 text-white/50" />
-                      )}
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">2</div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Edit Mode</p>
+                        <p className="text-sm text-slate-400">Toggle <span className="text-cyan-400">Gear Icon ⚙️</span> to enter Edit Mode. Hover over tiles to adjust volume, fades, or playback modes.</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <label className="cursor-pointer inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
-                        <input type="file" accept="image/*" onChange={(e) => handleFileSelect(e, 'image')} className="hidden" />
-                        <Upload className="w-4 h-4" />
-                        {editingSound.image ? 'Change Image' : 'Upload Custom Image'}
-                      </label>
-                      <p className="text-xs text-slate-500 mt-1">Images override colors.</p>
-                      {editingSound.image && (
-                        <button onClick={() => setEditingSound({ ...editingSound, image: null })} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
-                          Remove Image
-                        </button>
-                      )}
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">3</div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Saving Your Board</p>
+                        <p className="text-sm text-slate-400">Use <span className="text-cyan-400">Export</span> to download your <span className="text-white font-mono">.ttsave</span> file. Everything is stored locally!</p>
+                      </div>
                     </div>
                   </div>
+                </section>
 
-                  {!editingSound.image && (
-                    <div className="grid grid-cols-8 gap-2 mt-2">
-                      {COLORS.map((c, idx) => (
+                {/* Playback Modes */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> Mode Examples
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-amber-500/5 border border-amber-500/10 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-amber-400" />
+                        <h5 className="font-bold text-white uppercase text-xs tracking-widest">One-Shot Mode</h5>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">Best for short, punchy sounds. High-performance "stacking" allows for rapid fire effects.</p>
+                      <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/10 mt-2 pt-3">
                         <button
-                          key={c.name}
-                          onClick={() => setEditingSound({ ...editingSound, color: idx })}
-                          className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
-                        />
-                      ))}
+                          onClick={() => playSound('tutorial-demo-1')}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-amber-500/20"
+                        >
+                          <Play className="w-3 h-3" /> Play SFX
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-400">Shortcut Key</label>
-                  <div className="relative">
-                    <Keyboard className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      maxLength={1}
-                      value={editingSound.keybind}
-                      onChange={e => setEditingSound({ ...editingSound, keybind: e.target.value.toUpperCase() })}
-                      className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-9 px-3 py-2 font-mono uppercase text-center text-white focus:ring-1 focus:ring-cyan-500 focus:outline-none"
-                      placeholder="None"
-                    />
+                    <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Power className="w-5 h-5 text-cyan-400" />
+                          <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
+                        </div>
+                        <div className="flex gap-1">
+                          <div className={`w-1.5 h-1.5 rounded-full ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-400 animate-pulse shadow-[0_0_5px_cyan]' : 'bg-slate-700'}`} />
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">Best for background audio. Press once to start, press again to stop with a smooth fade-out.</p>
+                      <div className="flex flex-wrap gap-2 pt-1 border-t border-cyan-500/10 mt-2 pt-3">
+                        <button
+                          onClick={() => playSound('tutorial-demo-2')}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-500 text-slate-900 border-cyan-400' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30'}`}
+                        >
+                          <Power className="w-3 h-3" /> {activeSounds['tutorial-demo-2'] ? 'Stop Ambient' : 'Start Ambient'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="block text-sm font-medium text-slate-400">Clip Volume</label>
-                    <div className="flex items-center">
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={parseFloat((editingSound.volume * 100).toFixed(2))}
-                        onChange={(e) => {
-                          let val = parseFloat(e.target.value);
-                          if (!isNaN(val)) setEditingSound({ ...editingSound, volume: val / 100 });
+                {/* Stack vs Cut */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> Overlay vs Cut
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-indigo-400" />
+                        <p className="text-xs font-bold text-slate-200">Overlay (Stacking)</p>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">Sounds stack on each other. Spam the button to hear multiple beeps at once.</p>
+                      <button
+                        onClick={() => {
+                          setTutorialSound1(prev => ({ ...prev, overlap: true }));
+                          playSound('tutorial-demo-1');
                         }}
-                        className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                        title="Edit Clip Volume"
-                      />
-                      <span className="text-xs font-mono font-medium text-cyan-400">%</span>
+                        className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        Test Overlay
+                      </button>
                     </div>
-                  </div>
-                  <input
-                    type="range" min="0" max="1" step="0.01"
-                    value={editingSound.volume}
-                    onChange={e => setEditingSound({ ...editingSound, volume: parseFloat(e.target.value) })}
-                    className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 mt-3"
-                  />
-                </div>
-              </div>
-
-              {/* FADE CONTROLS */}
-              <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                {/* Standard Fades (Start/End) */}
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-slate-400">Fade In (Start)</span>
-                      <div className="flex items-center">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          max="5"
-                          value={parseFloat((editingSound.fadeIn || 0).toFixed(2))}
-                          onChange={(e) => {
-                            let val = parseFloat(e.target.value);
-                            if (!isNaN(val)) setEditingSound({ ...editingSound, fadeIn: val });
-                          }}
-                          className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                          title="Edit Fade In Time"
-                        />
-                        <span className="text-cyan-400 ml-0.5">s</span>
+                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-400" />
+                        <p className="text-xs font-bold text-slate-200">Cut (Choke Group)</p>
                       </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">New sound stops the old one instantly. No overlap, keeps things clean and tight.</p>
+                      <button
+                        onClick={() => {
+                          setTutorialSound1(prev => ({ ...prev, overlap: false }));
+                          playSound('tutorial-demo-1');
+                        }}
+                        className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        Test Cut
+                      </button>
                     </div>
-                    <input
-                      type="range" min="0" max="5" step="0.5"
-                      value={editingSound.fadeIn || 0}
-                      onChange={e => setEditingSound({ ...editingSound, fadeIn: parseFloat(e.target.value) })}
-                      className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                    />
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-slate-400">Fade Out (End)</span>
-                      <div className="flex items-center">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          max="5"
-                          value={parseFloat((editingSound.fadeOut || 0).toFixed(2))}
-                          onChange={(e) => {
-                            let val = parseFloat(e.target.value);
-                            if (!isNaN(val)) setEditingSound({ ...editingSound, fadeOut: val });
-                          }}
-                          className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                          title="Edit Fade Out Time"
-                        />
-                        <span className="text-cyan-400 ml-0.5">s</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range" min="0" max="5" step="0.5"
-                      value={editingSound.fadeOut || 0}
-                      onChange={e => setEditingSound({ ...editingSound, fadeOut: parseFloat(e.target.value) })}
-                      className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                    />
-                  </div>
-                </div>
+                </section>
 
-                {/* Pause/Resume Fades (Only for Toggle Mode) */}
-                {editingSound.mode === 'toggle' && (
-                  <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">Resume Fade</span>
-                        <div className="flex items-center">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            max="5"
-                            value={parseFloat((editingSound.resumeFade ?? 0.1).toFixed(2))}
-                            onChange={(e) => {
-                              let val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setEditingSound({ ...editingSound, resumeFade: val });
-                            }}
-                            className="text-indigo-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                            title="Edit Resume Fade Time"
-                          />
-                          <span className="text-indigo-400 ml-0.5">s</span>
+                {/* Edit Mode Demo Guide */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> Edit Mode Guide
+                  </h4>
+                  <div className="bg-slate-800/20 border border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                      <Settings className="w-24 h-24" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+                      <div className="flex flex-col items-center text-center space-y-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-400">
+                          <Settings className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-200 text-sm">1. Toggle Edit</p>
+                          <p className="text-xs text-slate-500 mt-1">Click the Gear icon in the header to enter Edit Mode.</p>
                         </div>
                       </div>
-                      <input
-                        type="range" min="0" max="5" step="0.1"
-                        value={editingSound.resumeFade ?? 0.1}
-                        onChange={e => setEditingSound({ ...editingSound, resumeFade: parseFloat(e.target.value) })}
-                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">Pause Fade</span>
-                        <div className="flex items-center">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            max="5"
-                            value={parseFloat((editingSound.pauseFade ?? 0.1).toFixed(2))}
-                            onChange={(e) => {
-                              let val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setEditingSound({ ...editingSound, pauseFade: val });
-                            }}
-                            className="text-amber-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                            title="Edit Pause Fade Time"
-                          />
-                          <span className="text-amber-400 ml-0.5">s</span>
+                      <div className="flex flex-col items-center text-center space-y-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                          <Activity className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-200 text-sm">2. Hover Tile</p>
+                          <p className="text-xs text-slate-500 mt-1">While in Edit Mode, hover over any sound board tile.</p>
                         </div>
                       </div>
-                      <input
-                        type="range" min="0" max="5" step="0.1"
-                        value={editingSound.pauseFade ?? 0.1}
-                        onChange={e => setEditingSound({ ...editingSound, pauseFade: parseFloat(e.target.value) })}
-                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                      />
+                      <div className="flex flex-col items-center text-center space-y-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                          <MoreVertical className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-200 text-sm">3. Customize</p>
+                          <p className="text-xs text-slate-500 mt-1">Click the vertical dots icon to adjust volume, fades, and modes.</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                )}
+                </section>
+
+                {/* Edit Playground */}
+                <section className="p-6 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-6 shadow-inner">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" /> Live Experiment (SFX)
+                        </h4>
+                        <p className="text-[11px] text-slate-500">Try changing the volume or color of the SFX sound!</p>
+                      </div>
+                      <button
+                        onClick={() => openEditModal(tutorialSound1)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
+                      >
+                        <Settings className="w-3.5 h-3.5" /> Edit SFX
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
+                      <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound1.color].class} flex items-center justify-center shadow-lg`}>
+                        <Music className="w-6 h-6 text-white/50" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-white">{tutorialSound1.name}</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound1.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => playSound('tutorial-demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                          <Play className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-6 border-t border-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" /> Live Experiment (Ambient)
+                        </h4>
+                        <p className="text-[11px] text-slate-500">Try changing the volume or color of the Ambient sound!</p>
+                      </div>
+                      <button
+                        onClick={() => openEditModal(tutorialSound2)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-cyan-500/20 hover:scale-105 transition-all active:scale-95"
+                      >
+                        <Settings className="w-3.5 h-3.5" /> Edit Ambient
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
+                      <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound2.color].class} flex items-center justify-center shadow-lg relative`}>
+                        <Music className="w-6 h-6 text-white/50" />
+                        {activeSounds['tutorial-demo-2'] && (
+                          <div className="absolute inset-0 bg-white/20 rounded-lg animate-pulse" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-white">{tutorialSound2.name}</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound2.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => playSound('tutorial-demo-2')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                          <Power className={`w-4 h-4 ${activeSounds['tutorial-demo-2'] ? 'text-amber-400' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
               </div>
 
-              <div className="flex flex-col gap-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
-                <div className="flex bg-slate-800 rounded-md p-0.5">
-                  <button
-                    onClick={() => setEditingSound({ ...editingSound, mode: 'restart' })}
-                    className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'restart' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                  >
-                    <Zap className="w-3 h-3" /> One-Shot
-                  </button>
-                  <button
-                    onClick={() => setEditingSound({ ...editingSound, mode: 'toggle' })}
-                    className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                  >
-                    <Power className="w-3 h-3" /> Toggle
-                  </button>
-                </div>
-
-                {editingSound.mode === 'restart' && (
-                  <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
-                    <button
-                      onClick={() => setEditingSound({ ...editingSound, overlap: true })}
-                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                      title="Stack sounds on top of each other"
-                    >
-                      <Layers className="w-3 h-3" /> Overlap
-                    </button>
-                    <button
-                      onClick={() => setEditingSound({ ...editingSound, overlap: false })}
-                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${!editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                      title="Stop previous sound when pressed again"
-                    >
-                      <Scissors className="w-3 h-3" /> Cut
-                    </button>
-                  </div>
-                )}
-
-                <label className="flex items-center gap-2 cursor-pointer pt-1">
-                  <input type="checkbox" checked={editingSound.loop} onChange={e => setEditingSound({ ...editingSound, loop: e.target.checked })} className="rounded bg-slate-700 border-slate-500 text-cyan-500 focus:ring-offset-0 focus:ring-0" />
-                  <span className="text-sm text-slate-300">Loop Audio</span>
-                </label>
-              </div>
-
-            </div>
-
-            <div className="p-5 border-t border-slate-700 bg-slate-800/50 rounded-b-2xl flex justify-between gap-4">
-              {editingSound.id && !editingSound.id.startsWith('tutorial-demo') ? (
-                !showDeleteConfirm ? (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 text-sm font-medium"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400">Sure?</span>
-                    <button
-                      onClick={() => deleteSound(editingSound.id)}
-                      className="px-3 py-1 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded text-xs font-bold transition-colors"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="px-3 py-1 bg-slate-700 text-slate-300 hover:bg-slate-600 rounded text-xs transition-colors"
-                    >
-                      No
-                    </button>
-                  </div>
-                )
-              ) : <div />}
-              <div className="flex gap-3">
-                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
+              <div className="p-6 border-t border-slate-800 bg-slate-800/50 flex justify-center">
                 <button
-                  onClick={saveSound}
-                  disabled={!editingSound.src && !editingSound.name}
-                  className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95"
+                  onClick={() => setShowTutorial(false)}
+                  className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
                 >
-                  Save Button
+                  Let's Go!
                 </button>
               </div>
-            </div>
 
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {
+        showModal && editingSound && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <div className="bg-slate-800 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
+
+              <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
+                <h2 className="text-xl font-bold text-white">
+                  {editingSound.id ? 'Edit Button' : 'New Button'}
+                </h2>
+                <div className="flex items-center gap-2">
+                  {editingSound.id && editingSound.src && editingSound.src !== 'demo_beep' && !editingSound.id.startsWith('tutorial-demo') && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          let urlToDownload = editingSound.src;
+                          // Attempt to make sure it's downloadable if it's already a regular link
+                          // If it's data/blob, just use it
+                          const a = document.createElement('a');
+                          a.href = urlToDownload;
+                          a.download = `${editingSound.name || 'sound'}.mp3`; // Fallback extension
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                        } catch (e) {
+                          console.error("Download failed", e);
+                        }
+                      }}
+                      className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-slate-700 rounded-lg transition-colors"
+                      title="Download Individual Sound File"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="text-slate-400 hover:text-white transition-colors p-2"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-cyan-400 uppercase tracking-wide">1. Audio Source</label>
+                  <div className="flex gap-4 items-start">
+                    <label className="flex-1 cursor-pointer group">
+                      <input type="file" accept="audio/*" onChange={(e) => handleFileSelect(e, 'audio')} className="hidden" />
+                      <div className="border border-slate-600 bg-slate-700/30 rounded-lg p-3 text-center hover:bg-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-3">
+                        <Upload className="w-5 h-5 text-slate-400 group-hover:text-cyan-400" />
+                        <span className="text-sm text-slate-300 truncate max-w-[200px]">
+                          {editingSound.src ? (editingSound.src === 'demo_beep' ? 'Using Demo Sound' : 'Audio Loaded') : 'Upload Audio File'}
+                        </span>
+                      </div>
+                    </label>
+                    {editingSound.src && (
+                      <button
+                        onClick={togglePreview}
+                        className={`p-3 rounded-lg transition-colors border border-slate-600 ${isPreviewPlaying ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-700 hover:bg-cyan-600 text-white'}`}
+                        title={isPreviewPlaying ? "Stop" : "Preview"}
+                      >
+                        {isPreviewPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5" />}
+                      </button>
+                    )}
+                  </div>
+                  {editingSound.src && (
+                    <button onClick={() => {
+                      setEditingSound({ ...editingSound, src: '', name: editingSound.name || '' });
+                      if (previewAudioRef.current) { previewAudioRef.current.pause(); setIsPreviewPlaying(false); }
+                    }} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
+                      Remove Audio
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-400">Name</label>
+                    <input
+                      type="text"
+                      value={editingSound.name}
+                      onChange={e => setEditingSound({ ...editingSound, name: e.target.value })}
+                      placeholder="e.g. Sword Clang"
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-400">Category</label>
+                    <input
+                      type="text"
+                      list="category-suggestions"
+                      value={editingSound.category}
+                      onChange={e => setEditingSound({ ...editingSound, category: e.target.value })}
+                      placeholder="e.g. Act 1"
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
+                    />
+                    <datalist id="category-suggestions">
+                      {categories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
+                    </datalist>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
+                    <MessageSquare className="w-4 h-4" /> Notes & Cues
+                  </label>
+                  <textarea
+                    value={editingSound.note || ''}
+                    onChange={e => setEditingSound({ ...editingSound, note: e.target.value })}
+                    placeholder="e.g. Play this when she says '...'"
+                    className="w-full h-16 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-none custom-scrollbar"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-cyan-400 uppercase tracking-wide">2. Appearance</label>
+
+                  <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && COLORS[editingSound.color].class}`}>
+                        {editingSound.image ? (
+                          <img src={editingSound.image} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-white/50" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <label className="cursor-pointer inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
+                          <input type="file" accept="image/*" onChange={(e) => handleFileSelect(e, 'image')} className="hidden" />
+                          <Upload className="w-4 h-4" />
+                          {editingSound.image ? 'Change Image' : 'Upload Custom Image'}
+                        </label>
+                        <p className="text-xs text-slate-500 mt-1">Images override colors.</p>
+                        {editingSound.image && (
+                          <button onClick={() => setEditingSound({ ...editingSound, image: null })} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
+                            Remove Image
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {!editingSound.image && (
+                      <div className="grid grid-cols-8 gap-2 mt-2">
+                        {COLORS.map((c, idx) => (
+                          <button
+                            key={c.name}
+                            onClick={() => setEditingSound({ ...editingSound, color: idx })}
+                            className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-400">Shortcut Key</label>
+                    <div className="relative">
+                      <Keyboard className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                      <input
+                        type="text"
+                        maxLength={1}
+                        value={editingSound.keybind}
+                        onChange={e => setEditingSound({ ...editingSound, keybind: e.target.value.toUpperCase() })}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-9 px-3 py-2 font-mono uppercase text-center text-white focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+                        placeholder="None"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-sm font-medium text-slate-400">Clip Volume</label>
+                      <div className="flex items-center">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={parseFloat((editingSound.volume * 100).toFixed(2))}
+                          onChange={(e) => {
+                            let val = parseFloat(e.target.value);
+                            if (!isNaN(val)) setEditingSound({ ...editingSound, volume: val / 100 });
+                          }}
+                          className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                          title="Edit Clip Volume"
+                        />
+                        <span className="text-xs font-mono font-medium text-cyan-400">%</span>
+                      </div>
+                    </div>
+                    <input
+                      type="range" min="0" max="1" step="0.01"
+                      value={editingSound.volume}
+                      onChange={e => setEditingSound({ ...editingSound, volume: parseFloat(e.target.value) })}
+                      className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 mt-3"
+                    />
+                  </div>
+                </div>
+
+                {/* FADE CONTROLS */}
+                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
+                  {/* Standard Fades (Start/End) */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-400">Fade In (Start)</span>
+                        <div className="flex items-center">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="5"
+                            value={parseFloat((editingSound.fadeIn || 0).toFixed(2))}
+                            onChange={(e) => {
+                              let val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setEditingSound({ ...editingSound, fadeIn: val });
+                            }}
+                            className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                            title="Edit Fade In Time"
+                          />
+                          <span className="text-cyan-400 ml-0.5">s</span>
+                        </div>
+                      </div>
+                      <input
+                        type="range" min="0" max="5" step="0.5"
+                        value={editingSound.fadeIn || 0}
+                        onChange={e => setEditingSound({ ...editingSound, fadeIn: parseFloat(e.target.value) })}
+                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-400">Fade Out (End)</span>
+                        <div className="flex items-center">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="5"
+                            value={parseFloat((editingSound.fadeOut || 0).toFixed(2))}
+                            onChange={(e) => {
+                              let val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setEditingSound({ ...editingSound, fadeOut: val });
+                            }}
+                            className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                            title="Edit Fade Out Time"
+                          />
+                          <span className="text-cyan-400 ml-0.5">s</span>
+                        </div>
+                      </div>
+                      <input
+                        type="range" min="0" max="5" step="0.5"
+                        value={editingSound.fadeOut || 0}
+                        onChange={e => setEditingSound({ ...editingSound, fadeOut: parseFloat(e.target.value) })}
+                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pause/Resume Fades (Only for Toggle Mode) */}
+                  {editingSound.mode === 'toggle' && (
+                    <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-400">Resume Fade</span>
+                          <div className="flex items-center">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              max="5"
+                              value={parseFloat((editingSound.resumeFade ?? 0.1).toFixed(2))}
+                              onChange={(e) => {
+                                let val = parseFloat(e.target.value);
+                                if (!isNaN(val)) setEditingSound({ ...editingSound, resumeFade: val });
+                              }}
+                              className="text-indigo-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                              title="Edit Resume Fade Time"
+                            />
+                            <span className="text-indigo-400 ml-0.5">s</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range" min="0" max="5" step="0.1"
+                          value={editingSound.resumeFade ?? 0.1}
+                          onChange={e => setEditingSound({ ...editingSound, resumeFade: parseFloat(e.target.value) })}
+                          className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-400">Pause Fade</span>
+                          <div className="flex items-center">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              max="5"
+                              value={parseFloat((editingSound.pauseFade ?? 0.1).toFixed(2))}
+                              onChange={(e) => {
+                                let val = parseFloat(e.target.value);
+                                if (!isNaN(val)) setEditingSound({ ...editingSound, pauseFade: val });
+                              }}
+                              className="text-amber-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                              title="Edit Pause Fade Time"
+                            />
+                            <span className="text-amber-400 ml-0.5">s</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range" min="0" max="5" step="0.1"
+                          value={editingSound.pauseFade ?? 0.1}
+                          onChange={e => setEditingSound({ ...editingSound, pauseFade: parseFloat(e.target.value) })}
+                          className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                  <div className="flex bg-slate-800 rounded-md p-0.5">
+                    <button
+                      onClick={() => setEditingSound({ ...editingSound, mode: 'restart' })}
+                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'restart' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <Zap className="w-3 h-3" /> One-Shot
+                    </button>
+                    <button
+                      onClick={() => setEditingSound({ ...editingSound, mode: 'toggle' })}
+                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <Power className="w-3 h-3" /> Toggle
+                    </button>
+                  </div>
+
+                  {editingSound.mode === 'restart' && (
+                    <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
+                      <button
+                        onClick={() => setEditingSound({ ...editingSound, overlap: true })}
+                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                        title="Stack sounds on top of each other"
+                      >
+                        <Layers className="w-3 h-3" /> Overlap
+                      </button>
+                      <button
+                        onClick={() => setEditingSound({ ...editingSound, overlap: false })}
+                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${!editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                        title="Stop previous sound when pressed again"
+                      >
+                        <Scissors className="w-3 h-3" /> Cut
+                      </button>
+                    </div>
+                  )}
+
+                  <label className="flex items-center gap-2 cursor-pointer pt-1">
+                    <input type="checkbox" checked={editingSound.loop} onChange={e => setEditingSound({ ...editingSound, loop: e.target.checked })} className="rounded bg-slate-700 border-slate-500 text-cyan-500 focus:ring-offset-0 focus:ring-0" />
+                    <span className="text-sm text-slate-300">Loop Audio</span>
+                  </label>
+                </div>
+
+              </div>
+
+              <div className="p-5 border-t border-slate-700 bg-slate-800/50 rounded-b-2xl flex justify-between gap-4">
+                {editingSound.id && !editingSound.id.startsWith('tutorial-demo') ? (
+                  !showDeleteConfirm ? (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 text-sm font-medium"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-400">Sure?</span>
+                      <button
+                        onClick={() => deleteSound(editingSound.id)}
+                        className="px-3 py-1 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded text-xs font-bold transition-colors"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-3 py-1 bg-slate-700 text-slate-300 hover:bg-slate-600 rounded text-xs transition-colors"
+                      >
+                        No
+                      </button>
+                    </div>
+                  )
+                ) : <div />}
+                <div className="flex gap-3">
+                  <button onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
+                  <button
+                    onClick={saveSound}
+                    disabled={!editingSound.src && !editingSound.name}
+                    className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95"
+                  >
+                    Save Button
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 }
