@@ -1153,15 +1153,6 @@ export default function SoundboardApp() {
                   </button>
 
                   <button
-                    onClick={() => setShowTutorial(true)}
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800 text-slate-400 hover:text-cyan-400 border border-slate-700 hover:border-cyan-500/50 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group"
-                    title="Open Tutorial"
-                  >
-                    <HelpCircle className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                    <span className="hidden sm:inline">Tutorial</span>
-                  </button>
-
-                  <button
                     onClick={stopAll}
                     className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group"
                   >
@@ -1348,6 +1339,16 @@ export default function SoundboardApp() {
             <p className="text-slate-400 mb-8 text-sm">{APP_CONFIG.credits.description}</p>
 
             <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setShowCredits(false);
+                  setShowTutorial(true);
+                }}
+                className="flex items-center justify-center gap-3 w-full p-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 hover:border-cyan-500/50 rounded-xl transition-all font-medium text-cyan-400 hover:text-cyan-300 group"
+              >
+                <BookOpen className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
+                View App Tutorial
+              </button>
               {APP_CONFIG.credits.links.github && (
                 <a href={APP_CONFIG.credits.links.github} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors font-medium text-white group">
                   <Github className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
