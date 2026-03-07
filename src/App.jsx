@@ -185,8 +185,15 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
         className="h-full w-full relative"
         {...(isEditMode ? listeners : {})}
       >
-        <button
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => !isEditMode && playSound(sound.id)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              !isEditMode && playSound(sound.id);
+            }
+          }}
           style={bgStyle}
           className={`
             w-full aspect-square rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
@@ -207,7 +214,7 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
 
           {isActive && (
             <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-              <div className={`bg-black/60 backdrop-blur-sm rounded-full p-3 border border-white/20 ${!isGlobalPaused && 'animate-pulse'}`}>
+              <div className={`bg-black/60 backdrop-blur-sm rounded-full p-3 border border-white/20 ${!isGlobalPaused && 'animate-Pulse'}`}>
                 {isGlobalPaused ? <Pause className="w-8 h-8 text-amber-400" /> : <Activity className="w-8 h-8 text-cyan-400" />}
               </div>
             </div>
@@ -241,7 +248,7 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
             <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
               {sound.category || 'General'}
             </p>
-            <h3 className={`font-bold text-lg leading-tight text-white drop-shadow-md ${sound.note ? 'truncate' : 'line-clamp-2'}`}>
+            <h3 className={`font-bold text-lg leading-tight text-white drop-shadow-md ${sound.note ? 'truncate' : 'line-clamp-4'}`}>
               {sound.name}
             </h3>
             {sound.note && (
@@ -254,7 +261,7 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
           {isActive && !sound.image && (
             <div className={`absolute inset-0 bg-white/20 ${!isGlobalPaused && 'animate-pulse'} z-0`}></div>
           )}
-        </button>
+        </div>
 
         {isEditMode && (
           <button
