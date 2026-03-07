@@ -102,11 +102,11 @@ export default function SoundboardApp() {
     }
   ]);
 
-  // Dedicated state for Tutorial-only sound (cannot be deleted from grid)
-  const [tutorialSound, setTutorialSound] = useState({
-    id: 'tutorial-demo',
-    name: 'Tutorial Demo',
-    category: 'Tutorial (Hidden)',
+  // Dedicated states for Tutorial-only sounds (cannot be deleted)
+  const [tutorialSound1, setTutorialSound1] = useState({
+    id: 'tutorial-demo-1',
+    name: 'Tutorial SFX',
+    category: 'Tutorial',
     src: 'demo_beep',
     image: null,
     color: 8, // Indigo
@@ -119,6 +119,24 @@ export default function SoundboardApp() {
     fadeOut: 0.5,
     pauseFade: 0.1,
     resumeFade: 0.1
+  });
+
+  const [tutorialSound2, setTutorialSound2] = useState({
+    id: 'tutorial-demo-2',
+    name: 'Tutorial Ambient',
+    category: 'Tutorial',
+    src: 'demo_beep',
+    image: null,
+    color: 1, // Cyan
+    keybind: '',
+    volume: 0.5,
+    loop: true,
+    mode: 'toggle',
+    overlap: true,
+    fadeIn: 1.5,
+    fadeOut: 1.5,
+    pauseFade: 1.0,
+    resumeFade: 1.0
   });
 
 
@@ -273,19 +291,21 @@ export default function SoundboardApp() {
       }
     });
 
-    // 3. UPDATE TUTORIAL SOUND (HIDDEN)
-    const tAudioEl = activeElementsRef.current['tutorial-demo'];
-    if (tAudioEl && !tAudioEl._fadeInterval && !isGlobalPaused) {
-      const calculatedVol = tutorialSound.volume * masterVolume;
-      const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
-      tAudioEl.volume = finalVol;
-    }
-    const tSources = activeSourcesRef.current['tutorial-demo'];
-    if (tSources) {
-      tSources.forEach(({ gainNode }) => {
-        gainNode.gain.setTargetAtTime(tutorialSound.volume, now, 0.05);
-      });
-    }
+    // 3. UPDATE TUTORIAL SOUNDS (HIDDEN)
+    [tutorialSound1, tutorialSound2].forEach(ts => {
+      const tAudioEl = activeElementsRef.current[ts.id];
+      if (tAudioEl && !tAudioEl._fadeInterval && !isGlobalPaused) {
+        const calculatedVol = ts.volume * masterVolume;
+        const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
+        tAudioEl.volume = finalVol;
+      }
+      const tSources = activeSourcesRef.current[ts.id];
+      if (tSources) {
+        tSources.forEach(({ gainNode }) => {
+          gainNode.gain.setTargetAtTime(ts.volume * masterVolume, now, 0.05);
+        });
+      }
+    });
 
     // Also update preview audio if playing
     if (previewAudioRef.current && isPreviewPlaying && editingSound) {
@@ -293,7 +313,7 @@ export default function SoundboardApp() {
       previewAudioRef.current.volume = pVol < 0.001 ? 0 : pVol;
     }
 
-  }, [masterVolume, sounds, tutorialSound, editingSound, isPreviewPlaying, isGlobalPaused]);
+  }, [masterVolume, sounds, tutorialSound1, tutorialSound2, editingSound, isPreviewPlaying, isGlobalPaused]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -347,7 +367,11 @@ export default function SoundboardApp() {
       // 2. Resume HTML Audio (Toggles)
       pausedHtmlAudioRef.current.forEach(id => {
         const audio = activeElementsRef.current[id];
-        const sound = sounds.find(s => s.id === id);
+        let sound;
+        if (id === 'tutorial-demo-1') sound = tutorialSound1;
+        else if (id === 'tutorial-demo-2') sound = tutorialSound2;
+        else sound = sounds.find(s => s.id === id);
+
         if (audio && sound) {
           audio.volume = 0;
           audio.play().catch(e => console.error("Resume error", e));
@@ -396,7 +420,11 @@ export default function SoundboardApp() {
       // Combine both sound lists for global pause
       const allActive = { ...activeElementsRef.current };
       Object.entries(allActive).forEach(([id, audio]) => {
-        const sound = (id === 'tutorial-demo') ? tutorialSound : sounds.find(s => s.id === id);
+        let sound;
+        if (id === 'tutorial-demo-1') sound = tutorialSound1;
+        else if (id === 'tutorial-demo-2') sound = tutorialSound2;
+        else sound = sounds.find(s => s.id === id);
+
         if (audio && !audio.paused && sound) {
           pausedHtmlAudioRef.current.add(id);
 
@@ -445,8 +473,12 @@ export default function SoundboardApp() {
       await toggleGlobalPause();
     }
 
-    // Check if it's the hidden tutorial sound first
-    const sound = (id === 'tutorial-demo') ? tutorialSound : sounds.find(s => s.id === id);
+    // Check if it's the hidden tutorial sounds first
+    let sound;
+    if (id === 'tutorial-demo-1') sound = tutorialSound1;
+    else if (id === 'tutorial-demo-2') sound = tutorialSound2;
+    else sound = sounds.find(s => s.id === id);
+
     if (!sound) return;
 
     // Demo Beep Logic
@@ -478,7 +510,7 @@ export default function SoundboardApp() {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
 
-    const currentSoundList = id === 'tutorial-demo' ? [tutorialSound] : sounds;
+    const currentSoundList = id.startsWith('tutorial-demo') ? [tutorialSound1, tutorialSound2] : sounds;
     const toggleTargetVol = sound.volume * masterVolume;
 
     // --- MODE 1: TOGGLE (Now uses independent Pause/Resume fades) ---
@@ -859,11 +891,18 @@ export default function SoundboardApp() {
       category: editingSound.category.trim() || 'General'
     };
 
-    if (editingSound.id === 'tutorial-demo') {
-      setTutorialSound({ ...soundToSave });
+    if (editingSound.id === 'tutorial-demo-1') {
+      setTutorialSound1({ ...soundToSave });
       setShowModal(false);
       setEditingSound(null);
-      setStatusMsg("Tutorial Preview Updated");
+      setStatusMsg("Tutorial SFX Updated");
+      return;
+    }
+    if (editingSound.id === 'tutorial-demo-2') {
+      setTutorialSound2({ ...soundToSave });
+      setShowModal(false);
+      setEditingSound(null);
+      setStatusMsg("Tutorial Ambient Updated");
       return;
     }
 
@@ -1347,34 +1386,73 @@ export default function SoundboardApp() {
                     <p className="text-xs text-slate-400 leading-relaxed">Best for short, punchy sounds. High-performance "stacking" allows for rapid fire effects.</p>
                     <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/10 mt-2 pt-3">
                       <button
-                        onClick={() => playSound('demo-1')}
+                        onClick={() => playSound('tutorial-demo-1')}
                         className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-amber-500/20"
                       >
-                        <Play className="w-3 h-3" /> Test One-Shot
+                        <Play className="w-3 h-3" /> Play SFX
                       </button>
                     </div>
                   </div>
                   <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Power className="w-5 h-5 text-cyan-400" />
-                      <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Power className="w-5 h-5 text-cyan-400" />
+                        <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
+                      </div>
+                      <div className="flex gap-1">
+                        <div className={`w-1.5 h-1.5 rounded-full ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-400 animate-pulse shadow-[0_0_5px_cyan]' : 'bg-slate-700'}`} />
+                      </div>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">Best for background audio. Press once to start, press again to stop with a smooth fade-out.</p>
                     <div className="flex flex-wrap gap-2 pt-1 border-t border-cyan-500/10 mt-2 pt-3">
                       <button
-                        onClick={() => {
-                          const s = sounds.find(s => s.id === 'demo-1');
-                          if (s) {
-                            const originalMode = s.mode;
-                            s.mode = 'toggle';
-                            playSound('demo-1').then(() => { s.mode = originalMode; });
-                          }
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-cyan-500/20"
+                        onClick={() => playSound('tutorial-demo-2')}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-500 text-slate-900 border-cyan-400' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30'}`}
                       >
-                        <Power className="w-3 h-3" /> Test Toggle
+                        <Power className="w-3 h-3" /> {activeSounds['tutorial-demo-2'] ? 'Stop Ambient' : 'Start Ambient'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Stack vs Cut */}
+              <section className="space-y-6">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <div className="h-px w-8 bg-slate-800"></div> Overlay vs Cut
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-indigo-400" />
+                      <p className="text-xs font-bold text-slate-200">Overlay (Stacking)</p>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">Sounds stack on each other. Spam the button to hear multiple beeps at once.</p>
+                    <button
+                      onClick={() => {
+                        setTutorialSound1(prev => ({ ...prev, overlap: true }));
+                        playSound('tutorial-demo-1');
+                      }}
+                      className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                      Test Overlay
+                    </button>
+                  </div>
+                  <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <p className="text-xs font-bold text-slate-200">Cut (Choke Group)</p>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">New sound stops the old one instantly. No overlap, keeps things clean and tight.</p>
+                    <button
+                      onClick={() => {
+                        setTutorialSound1(prev => ({ ...prev, overlap: false }));
+                        playSound('tutorial-demo-1');
+                      }}
+                      className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                      Test Cut
+                    </button>
                   </div>
                 </div>
               </section>
@@ -1430,7 +1508,7 @@ export default function SoundboardApp() {
                     <p className="text-[11px] text-slate-500">Try changing the volume or color of this tutorial sound!</p>
                   </div>
                   <button
-                    onClick={() => openEditModal(tutorialSound)}
+                    onClick={() => openEditModal(tutorialSound1)}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-xl text-xs font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
                   >
                     <Settings className="w-3.5 h-3.5" /> Start Editing Tutorial Demo
@@ -1438,15 +1516,15 @@ export default function SoundboardApp() {
                 </div>
 
                 <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                  <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound.color].class} flex items-center justify-center shadow-lg`}>
+                  <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound1.color].class} flex items-center justify-center shadow-lg`}>
                     <Music className="w-6 h-6 text-white/50" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-bold text-white">{tutorialSound.name}</p>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                    <p className="text-xs font-bold text-white">{tutorialSound1.name}</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound1.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => playSound('tutorial-demo')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                    <button onClick={() => playSound('tutorial-demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
                       <Play className="w-4 h-4" />
                     </button>
                   </div>
@@ -1723,7 +1801,7 @@ export default function SoundboardApp() {
             </div>
 
             <div className="p-5 border-t border-slate-700 bg-slate-800/50 rounded-b-2xl flex justify-between gap-4">
-              {editingSound.id && editingSound.id !== 'tutorial-demo' ? (
+              {editingSound.id && !editingSound.id.startsWith('tutorial-demo') ? (
                 !showDeleteConfirm ? (
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
