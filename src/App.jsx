@@ -3,7 +3,7 @@ import {
   Play, Square, Plus, Trash2, Settings, Volume2, Music, Upload,
   Keyboard, X, Repeat, MoreVertical, AlertCircle, Image as ImageIcon,
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power,
-  Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles
+  Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare
 } from 'lucide-react';
 
 // --- 🔧 CONFIGURATION: EDIT THIS SECTION 🔧 ---
@@ -1282,9 +1282,14 @@ export default function SoundboardApp() {
                     <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
                       {sound.category || 'General'}
                     </p>
-                    <h3 className="font-bold text-lg leading-tight text-white drop-shadow-md line-clamp-2">
+                    <h3 className={`font-bold text-lg leading-tight text-white drop-shadow-md ${sound.note ? 'truncate' : 'line-clamp-2'}`}>
                       {sound.name}
                     </h3>
+                    {sound.note && (
+                      <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 italic font-medium ${sound.image ? 'text-white drop-shadow-md' : 'text-white/80 mix-blend-screen'}`}>
+                        {sound.note}
+                      </p>
+                    )}
                   </div>
 
                   {isActive && !sound.image && (
@@ -1765,7 +1770,7 @@ export default function SoundboardApp() {
                     value={editingSound.name}
                     onChange={e => setEditingSound({ ...editingSound, name: e.target.value })}
                     placeholder="e.g. Sword Clang"
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1776,12 +1781,24 @@ export default function SoundboardApp() {
                     value={editingSound.category}
                     onChange={e => setEditingSound({ ...editingSound, category: e.target.value })}
                     placeholder="e.g. Act 1"
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
                   />
                   <datalist id="category-suggestions">
                     {categories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
                   </datalist>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
+                  <MessageSquare className="w-4 h-4" /> Notes & Cues
+                </label>
+                <textarea
+                  value={editingSound.note || ''}
+                  onChange={e => setEditingSound({ ...editingSound, note: e.target.value })}
+                  placeholder="e.g. Play this when she says '...'"
+                  className="w-full h-16 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-none custom-scrollbar"
+                />
               </div>
 
               <div className="space-y-2">
