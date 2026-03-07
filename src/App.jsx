@@ -1874,9 +1874,24 @@ export default function SoundboardApp() {
                 {/* Standard Fades (Start/End) */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-400">Fade In (Start)</span>
-                      <span className="text-cyan-400">{editingSound.fadeIn || 0}s</span>
+                      <div className="flex items-center">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max="5"
+                          value={parseFloat((editingSound.fadeIn || 0).toFixed(2))}
+                          onChange={(e) => {
+                            let val = parseFloat(e.target.value);
+                            if (!isNaN(val)) setEditingSound({ ...editingSound, fadeIn: val });
+                          }}
+                          className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                          title="Edit Fade In Time"
+                        />
+                        <span className="text-cyan-400 ml-0.5">s</span>
+                      </div>
                     </div>
                     <input
                       type="range" min="0" max="5" step="0.5"
@@ -1886,9 +1901,24 @@ export default function SoundboardApp() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-400">Fade Out (End)</span>
-                      <span className="text-cyan-400">{editingSound.fadeOut || 0}s</span>
+                      <div className="flex items-center">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max="5"
+                          value={parseFloat((editingSound.fadeOut || 0).toFixed(2))}
+                          onChange={(e) => {
+                            let val = parseFloat(e.target.value);
+                            if (!isNaN(val)) setEditingSound({ ...editingSound, fadeOut: val });
+                          }}
+                          className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                          title="Edit Fade Out Time"
+                        />
+                        <span className="text-cyan-400 ml-0.5">s</span>
+                      </div>
                     </div>
                     <input
                       type="range" min="0" max="5" step="0.5"
@@ -1903,9 +1933,24 @@ export default function SoundboardApp() {
                 {editingSound.mode === 'toggle' && (
                   <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between items-center text-sm">
                         <span className="text-slate-400">Resume Fade</span>
-                        <span className="text-indigo-400">{editingSound.resumeFade ?? 0.1}s</span>
+                        <div className="flex items-center">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="5"
+                            value={parseFloat((editingSound.resumeFade ?? 0.1).toFixed(2))}
+                            onChange={(e) => {
+                              let val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setEditingSound({ ...editingSound, resumeFade: val });
+                            }}
+                            className="text-indigo-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                            title="Edit Resume Fade Time"
+                          />
+                          <span className="text-indigo-400 ml-0.5">s</span>
+                        </div>
                       </div>
                       <input
                         type="range" min="0" max="5" step="0.1"
@@ -1915,9 +1960,24 @@ export default function SoundboardApp() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between items-center text-sm">
                         <span className="text-slate-400">Pause Fade</span>
-                        <span className="text-amber-400">{editingSound.pauseFade ?? 0.1}s</span>
+                        <div className="flex items-center">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="5"
+                            value={parseFloat((editingSound.pauseFade ?? 0.1).toFixed(2))}
+                            onChange={(e) => {
+                              let val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setEditingSound({ ...editingSound, pauseFade: val });
+                            }}
+                            className="text-amber-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                            title="Edit Pause Fade Time"
+                          />
+                          <span className="text-amber-400 ml-0.5">s</span>
+                        </div>
                       </div>
                       <input
                         type="range" min="0" max="5" step="0.1"
