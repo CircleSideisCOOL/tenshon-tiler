@@ -1585,34 +1585,71 @@ export default function SoundboardApp() {
               </section>
 
               {/* Edit Playground */}
-              <section className="p-6 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-4 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" /> Live Experiment
-                    </h4>
-                    <p className="text-[11px] text-slate-500">Try changing the volume or color of this tutorial sound!</p>
+              <section className="p-6 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-6 shadow-inner">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" /> Live Experiment (SFX)
+                      </h4>
+                      <p className="text-[11px] text-slate-500">Try changing the volume or color of the SFX sound!</p>
+                    </div>
+                    <button
+                      onClick={() => openEditModal(tutorialSound1)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
+                    >
+                      <Settings className="w-3.5 h-3.5" /> Edit SFX
+                    </button>
                   </div>
-                  <button
-                    onClick={() => openEditModal(tutorialSound1)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-xl text-xs font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
-                  >
-                    <Settings className="w-3.5 h-3.5" /> Start Editing Tutorial Demo
-                  </button>
+
+                  <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
+                    <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound1.color].class} flex items-center justify-center shadow-lg`}>
+                      <Music className="w-6 h-6 text-white/50" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-white">{tutorialSound1.name}</p>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound1.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => playSound('tutorial-demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                        <Play className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                  <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound1.color].class} flex items-center justify-center shadow-lg`}>
-                    <Music className="w-6 h-6 text-white/50" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-white">{tutorialSound1.name}</p>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound1.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => playSound('tutorial-demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
-                      <Play className="w-4 h-4" />
+                <div className="space-y-4 pt-6 border-t border-slate-700/50">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" /> Live Experiment (Ambient)
+                      </h4>
+                      <p className="text-[11px] text-slate-500">Try changing the volume or color of the Ambient sound!</p>
+                    </div>
+                    <button
+                      onClick={() => openEditModal(tutorialSound2)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-cyan-500/20 hover:scale-105 transition-all active:scale-95"
+                    >
+                      <Settings className="w-3.5 h-3.5" /> Edit Ambient
                     </button>
+                  </div>
+
+                  <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
+                    <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound2.color].class} flex items-center justify-center shadow-lg relative`}>
+                      <Music className="w-6 h-6 text-white/50" />
+                      {activeSounds['tutorial-demo-2'] && (
+                        <div className="absolute inset-0 bg-white/20 rounded-lg animate-pulse" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-white">{tutorialSound2.name}</p>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound2.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => playSound('tutorial-demo-2')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                        <Power className={`w-4 h-4 ${activeSounds['tutorial-demo-2'] ? 'text-amber-400' : ''}`} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </section>
