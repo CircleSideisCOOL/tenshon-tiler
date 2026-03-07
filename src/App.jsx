@@ -418,7 +418,7 @@ export default function SoundboardApp() {
       saveToDB('customCategoryOrder', customCategoryOrder);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [sounds, masterVolume, isLoaded]);
+  }, [sounds, masterVolume, customCategoryOrder, isLoaded]);
 
   // Cleanup
   useEffect(() => {
