@@ -1100,9 +1100,21 @@ export default function SoundboardApp() {
                   onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
                   className="w-20 lg:w-20 accent-cyan-500 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
                 />
-                <span className="text-xs font-mono font-medium text-cyan-400 w-9 text-right">
-                  {Math.round(masterVolume * 100)}%
-                </span>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={parseFloat((masterVolume * 100).toFixed(2))}
+                    onChange={(e) => {
+                      let val = parseFloat(e.target.value);
+                      if (!isNaN(val)) setMasterVolume(val / 100);
+                    }}
+                    className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-700 px-1 rounded transition-colors hide-arrows"
+                    title="Edit Master Volume"
+                  />
+                  <span className="text-xs font-mono font-medium text-cyan-400">%</span>
+                </div>
               </div>
 
               {/* RIGHT: Actions */}
@@ -1831,9 +1843,21 @@ export default function SoundboardApp() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="block text-sm font-medium text-slate-400">Clip Volume</label>
-                    <span className="text-xs font-mono font-medium text-cyan-400">
-                      {Math.round(editingSound.volume * 100)}%
-                    </span>
+                    <div className="flex items-center">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={parseFloat((editingSound.volume * 100).toFixed(2))}
+                        onChange={(e) => {
+                          let val = parseFloat(e.target.value);
+                          if (!isNaN(val)) setEditingSound({ ...editingSound, volume: val / 100 });
+                        }}
+                        className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                        title="Edit Clip Volume"
+                      />
+                      <span className="text-xs font-mono font-medium text-cyan-400">%</span>
+                    </div>
                   </div>
                   <input
                     type="range" min="0" max="1" step="0.01"
