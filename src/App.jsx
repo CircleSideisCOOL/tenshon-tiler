@@ -245,7 +245,7 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
               {sound.name}
             </h3>
             {sound.note && (
-              <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 italic font-medium ${sound.image ? 'text-white drop-shadow-md' : 'text-white/80 mix-blend-screen'}`}>
+              <p className={`text-[10px] mt-0.5 leading-snug line-clamp-4 italic font-medium ${sound.image ? 'text-white drop-shadow-md' : 'text-white/80 mix-blend-screen'}`}>
                 {sound.note}
               </p>
             )}
@@ -1919,7 +1919,7 @@ export default function SoundboardApp() {
                     value={editingSound.note || ''}
                     onChange={e => setEditingSound({ ...editingSound, note: e.target.value })}
                     placeholder="e.g. Play this when she says '...'"
-                    className="w-full h-16 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-none custom-scrollbar"
+                    className="w-full h-24 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-y custom-scrollbar"
                   />
                 </div>
 
