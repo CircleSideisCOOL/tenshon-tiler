@@ -166,7 +166,7 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
     zIndex: isDragging ? 50 : 1,
     position: 'relative',
     height: '100%',
-    touchAction: 'none'
+    touchAction: isEditMode ? 'none' : 'auto'
   };
 
   const color = COLORS[sound.color] || COLORS[0];
