@@ -1299,10 +1299,13 @@ export default function SoundboardApp() {
                       <h5 className="font-bold text-white uppercase text-xs tracking-widest">One-Shot Mode</h5>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">Best for short, punchy sounds. High-performance "stacking" allows for rapid fire effects.</p>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {['Punches', 'Gunshots', 'Laugh Tracks', 'UI Clicks'].map(ex => (
-                        <span key={ex} className="text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">{ex}</span>
-                      ))}
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/10 mt-2 pt-3">
+                      <button
+                        onClick={() => playSound('demo-1')}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-amber-500/20"
+                      >
+                        <Play className="w-3 h-3" /> Test One-Shot
+                      </button>
                     </div>
                   </div>
                   <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-3">
@@ -1311,10 +1314,20 @@ export default function SoundboardApp() {
                       <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">Best for background audio. Press once to start, press again to stop with a smooth fade-out.</p>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {['Ambience', 'Music Loops', 'Rain SFX', 'Podcasts'].map(ex => (
-                        <span key={ex} className="text-[10px] px-2 py-0.5 bg-cyan-500/10 text-cyan-400 rounded-full border border-cyan-500/20">{ex}</span>
-                      ))}
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-cyan-500/10 mt-2 pt-3">
+                      <button
+                        onClick={() => {
+                          const s = sounds.find(s => s.id === 'demo-1');
+                          if (s) {
+                            const originalMode = s.mode;
+                            s.mode = 'toggle';
+                            playSound('demo-1').then(() => { s.mode = originalMode; });
+                          }
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-cyan-500/20"
+                      >
+                        <Power className="w-3 h-3" /> Test Toggle
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1361,6 +1374,42 @@ export default function SoundboardApp() {
                 </div>
               </section>
 
+              {/* Edit Playground */}
+              <section className="p-6 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-4 shadow-inner">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" /> Live Experiment
+                    </h4>
+                    <p className="text-[11px] text-slate-500">Try changing the volume or color of the Demo sound!</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const demo = sounds.find(s => s.id === 'demo-1');
+                      if (demo) openEditModal(demo);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-xl text-xs font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
+                  >
+                    <Settings className="w-3.5 h-3.5" /> Start Editing Demo
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
+                  <div className={`w-12 h-12 rounded-lg ${COLORS[sounds[0]?.color || 0].class} flex items-center justify-center shadow-lg`}>
+                    <Music className="w-6 h-6 text-white/50" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-white">{sounds[0]?.name || 'Demo Sound'}</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {sounds[0]?.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => playSound('demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                      <Play className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </section>
+
             </div>
 
             <div className="p-6 border-t border-slate-800 bg-slate-800/50 flex justify-center">
@@ -1377,7 +1426,7 @@ export default function SoundboardApp() {
       )}
 
       {showModal && editingSound && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-slate-800 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
 
             <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
