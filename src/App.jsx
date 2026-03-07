@@ -258,7 +258,6 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
 
         {isEditMode && (
           <button
-            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); openEditModal(sound); }}
             className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30"
           >
