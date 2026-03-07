@@ -1090,17 +1090,17 @@ export default function SoundboardApp() {
             </div>
 
             {/* 2. CONTROLS BAR (Volume Left - Buttons Right) */}
-            <div className="flex flex-wrap items-center justify-between w-full lg:flex-1 lg:ml-4 gap-y-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between w-full lg:flex-1 lg:ml-4 gap-3">
 
               {/* LEFT: Volume */}
-              <div className="flex items-center gap-3 bg-slate-800 p-2 rounded-lg border border-slate-700 flex-none shadow-inner">
+              <div className="flex items-center justify-between sm:justify-start gap-3 bg-slate-800 p-2.5 rounded-xl border border-slate-700 shadow-inner w-full sm:w-auto flex-1">
                 <Volume2 className="w-5 h-5 text-slate-400" />
                 <input
                   type="range" min="0" max="1" step="0.01" value={masterVolume}
                   onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-                  className="w-20 lg:w-20 accent-cyan-500 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                  className="w-full sm:w-20 lg:w-24 accent-cyan-500 h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer flex-1"
                 />
-                <div className="flex items-center">
+                <div className="flex items-center bg-slate-900/50 rounded-lg px-2 py-1">
                   <input
                     type="number"
                     step="any"
@@ -1110,15 +1110,15 @@ export default function SoundboardApp() {
                       let val = parseFloat(e.target.value);
                       if (!isNaN(val)) setMasterVolume(val / 100);
                     }}
-                    className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-700 px-1 rounded transition-colors hide-arrows"
+                    className="text-xs font-mono font-bold text-cyan-400 w-10 text-right bg-transparent focus:outline-none appearance-none hide-arrows"
                     title="Edit Master Volume"
                   />
-                  <span className="text-xs font-mono font-medium text-cyan-400">%</span>
+                  <span className="text-xs font-mono font-bold text-cyan-400">%</span>
                 </div>
               </div>
 
               {/* RIGHT: Actions */}
-              <div className="flex items-center gap-2 sm:gap-4 ml-auto sm:ml-0">
+              <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
 
                 {/* Desktop Import/Export */}
                 <div className="hidden lg:flex items-center gap-1 border-r border-slate-700 pr-4">
@@ -1137,13 +1137,13 @@ export default function SoundboardApp() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1 sm:flex-none">
                   {/* PAUSE / RESUME BUTTON */}
                   <button
                     onClick={toggleGlobalPause}
-                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group border
+                    className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl sm:rounded-lg transition-all font-bold active:scale-95 whitespace-nowrap shadow-sm group border
                             ${isGlobalPaused
-                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
                         : 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600 hover:text-white'}
                           `}
                     title={isGlobalPaused ? "Resume All Sounds" : "Pause All Sounds"}
@@ -1154,10 +1154,10 @@ export default function SoundboardApp() {
 
                   <button
                     onClick={stopAll}
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg transition-all font-medium active:scale-95 whitespace-nowrap shadow-sm group"
+                    className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-xl sm:rounded-lg transition-all font-bold active:scale-95 whitespace-nowrap shadow-sm group"
                   >
                     <Square className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
-                    <span className="hidden sm:inline">Stop All</span>
+                    <span className="hidden sm:inline">Stop</span>
                     {globalPlayCount > 0 && (
                       <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm animate-pulse">
                         {globalPlayCount}
@@ -1168,7 +1168,7 @@ export default function SoundboardApp() {
 
                 <button
                   onClick={() => setIsEditMode(!isEditMode)}
-                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all border font-medium ${isEditMode ? 'bg-cyan-500 text-slate-900 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-400'}`}
+                  className={`flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl sm:rounded-lg transition-all border font-bold ${isEditMode ? 'bg-cyan-500 text-slate-900 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-400'}`}
                   title="Toggle Edit Mode"
                 >
                   <Settings className="w-4 h-4" />
@@ -1232,7 +1232,7 @@ export default function SoundboardApp() {
                   onClick={() => playSound(sound.id)}
                   style={bgStyle}
                   className={`
-                    w-full aspect-square rounded-2xl p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
+                    w-full aspect-square rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
                     transition-all duration-100 ease-out border-b-4 active:border-b-0 active:translate-y-1 shadow-lg
                     ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
                     ${isActive
