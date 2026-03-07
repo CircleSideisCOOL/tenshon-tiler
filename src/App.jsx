@@ -97,10 +97,30 @@ export default function SoundboardApp() {
       overlap: true,
       fadeIn: 0,
       fadeOut: 0.5,
-      pauseFade: 0.1, // Default small fade for pauses
-      resumeFade: 0.1 // Default small fade for resumes
+      pauseFade: 0.1,
+      resumeFade: 0.1
     }
   ]);
+
+  // Dedicated state for Tutorial-only sound (cannot be deleted from grid)
+  const [tutorialSound, setTutorialSound] = useState({
+    id: 'tutorial-demo',
+    name: 'Tutorial Demo',
+    category: 'Tutorial (Hidden)',
+    src: 'demo_beep',
+    image: null,
+    color: 8, // Indigo
+    keybind: '',
+    volume: 0.7,
+    loop: false,
+    mode: 'restart',
+    overlap: true,
+    fadeIn: 0,
+    fadeOut: 0.5,
+    pauseFade: 0.1,
+    resumeFade: 0.1
+  });
+
 
   // UI State
   const [activeSounds, setActiveSounds] = useState({});
@@ -253,13 +273,27 @@ export default function SoundboardApp() {
       }
     });
 
+    // 3. UPDATE TUTORIAL SOUND (HIDDEN)
+    const tAudioEl = activeElementsRef.current['tutorial-demo'];
+    if (tAudioEl && !tAudioEl._fadeInterval && !isGlobalPaused) {
+      const calculatedVol = tutorialSound.volume * masterVolume;
+      const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
+      tAudioEl.volume = finalVol;
+    }
+    const tSources = activeSourcesRef.current['tutorial-demo'];
+    if (tSources) {
+      tSources.forEach(({ gainNode }) => {
+        gainNode.gain.setTargetAtTime(tutorialSound.volume, now, 0.05);
+      });
+    }
+
     // Also update preview audio if playing
     if (previewAudioRef.current && isPreviewPlaying && editingSound) {
       const pVol = editingSound.volume * masterVolume;
       previewAudioRef.current.volume = pVol < 0.001 ? 0 : pVol;
     }
 
-  }, [masterVolume, sounds, editingSound, isPreviewPlaying, isGlobalPaused]);
+  }, [masterVolume, sounds, tutorialSound, editingSound, isPreviewPlaying, isGlobalPaused]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -359,8 +393,10 @@ export default function SoundboardApp() {
 
       // 2. Fade Out HTML Audio (Active Toggles)
       let maxFadeTime = 0;
-      Object.entries(activeElementsRef.current).forEach(([id, audio]) => {
-        const sound = sounds.find(s => s.id === id);
+      // Combine both sound lists for global pause
+      const allActive = { ...activeElementsRef.current };
+      Object.entries(allActive).forEach(([id, audio]) => {
+        const sound = (id === 'tutorial-demo') ? tutorialSound : sounds.find(s => s.id === id);
         if (audio && !audio.paused && sound) {
           pausedHtmlAudioRef.current.add(id);
 
@@ -409,7 +445,8 @@ export default function SoundboardApp() {
       await toggleGlobalPause();
     }
 
-    const sound = sounds.find(s => s.id === id);
+    // Check if it's the hidden tutorial sound first
+    const sound = (id === 'tutorial-demo') ? tutorialSound : sounds.find(s => s.id === id);
     if (!sound) return;
 
     // Demo Beep Logic
@@ -441,6 +478,7 @@ export default function SoundboardApp() {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
 
+    const currentSoundList = id === 'tutorial-demo' ? [tutorialSound] : sounds;
     const toggleTargetVol = sound.volume * masterVolume;
 
     // --- MODE 1: TOGGLE (Now uses independent Pause/Resume fades) ---
@@ -821,6 +859,14 @@ export default function SoundboardApp() {
       category: editingSound.category.trim() || 'General'
     };
 
+    if (editingSound.id === 'tutorial-demo') {
+      setTutorialSound({ ...soundToSave });
+      setShowModal(false);
+      setEditingSound(null);
+      setStatusMsg("Tutorial Preview Updated");
+      return;
+    }
+
     if (soundToSave.id) {
       if (bufferCacheRef.current[soundToSave.id]) delete bufferCacheRef.current[soundToSave.id];
       setSounds(prev => prev.map(s => s.id === soundToSave.id ? soundToSave : s));
@@ -885,7 +931,7 @@ export default function SoundboardApp() {
 
   const categories = ['All', ...new Set(sounds.map(s => s.category || 'General'))].sort();
   const filteredSounds = sounds.filter(s =>
-    selectedCategory === 'All' || (s.category || 'General') === selectedCategory
+    (selectedCategory === 'All' || (s.category || 'General') === selectedCategory) && s.id !== 'tutorial-demo'
   );
 
   return (
@@ -1381,29 +1427,26 @@ export default function SoundboardApp() {
                     <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
                       <Sparkles className="w-4 h-4" /> Live Experiment
                     </h4>
-                    <p className="text-[11px] text-slate-500">Try changing the volume or color of the Demo sound!</p>
+                    <p className="text-[11px] text-slate-500">Try changing the volume or color of this tutorial sound!</p>
                   </div>
                   <button
-                    onClick={() => {
-                      const demo = sounds.find(s => s.id === 'demo-1');
-                      if (demo) openEditModal(demo);
-                    }}
+                    onClick={() => openEditModal(tutorialSound)}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-xl text-xs font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
                   >
-                    <Settings className="w-3.5 h-3.5" /> Start Editing Demo
+                    <Settings className="w-3.5 h-3.5" /> Start Editing Tutorial Demo
                   </button>
                 </div>
 
                 <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                  <div className={`w-12 h-12 rounded-lg ${COLORS[sounds[0]?.color || 0].class} flex items-center justify-center shadow-lg`}>
+                  <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound.color].class} flex items-center justify-center shadow-lg`}>
                     <Music className="w-6 h-6 text-white/50" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-bold text-white">{sounds[0]?.name || 'Demo Sound'}</p>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {sounds[0]?.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
+                    <p className="text-xs font-bold text-white">{tutorialSound.name}</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => playSound('demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
+                    <button onClick={() => playSound('tutorial-demo')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
                       <Play className="w-4 h-4" />
                     </button>
                   </div>
@@ -1680,7 +1723,7 @@ export default function SoundboardApp() {
             </div>
 
             <div className="p-5 border-t border-slate-700 bg-slate-800/50 rounded-b-2xl flex justify-between gap-4">
-              {editingSound.id ? (
+              {editingSound.id && editingSound.id !== 'tutorial-demo' ? (
                 !showDeleteConfirm ? (
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
