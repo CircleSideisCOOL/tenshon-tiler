@@ -1353,6 +1353,22 @@ export default function SoundboardApp() {
             <div className="mt-8 text-xs text-slate-500 flex items-center justify-center gap-1">
               {APP_CONFIG.credits.footerText}
             </div>
+
+            <div className="mt-6 border-t border-slate-700/50 pt-6">
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to completely erase your soundboard? This cannot be undone!")) {
+                    window.indexedDB.deleteDatabase('TenshonDB');
+                    localStorage.clear();
+                    window.location.reload();
+                  }
+                }}
+                className="flex items-center justify-center gap-2 w-full p-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 hover:border-red-500/50 rounded-xl transition-all font-bold group"
+              >
+                <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                Factory Reset All Data
+              </button>
+            </div>
           </div>
         </div>
       )}
