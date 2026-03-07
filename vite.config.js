@@ -4,15 +4,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/tenshon-tiler/',
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       // Include all your static assets here to ensure they are cached
       includeAssets: [
-        'favicon.ico', 
-        'apple-touch-icon.png', 
-        'favicon-16x16.png', 
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'favicon-16x16.png',
         'favicon-32x32.png'
       ],
       manifest: {
