@@ -81,6 +81,44 @@ const blobToDataURL = async (blobUrl) => {
   }
 };
 
+// --- IndexedDB Helper for Persistence ---
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const req = window.indexedDB.open('TenshonDB', 1);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore('tenshon_store');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+};
+
+const saveToDB = async (key, val) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction('tenshon_store', 'readwrite');
+    tx.objectStore('tenshon_store').put(val, key);
+  } catch (e) {
+    console.error("IDB Save Error", e);
+  }
+};
+
+const loadFromDB = async (key) => {
+  try {
+    const db = await initDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('tenshon_store', 'readonly');
+      const req = tx.objectStore('tenshon_store').get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    console.error("IDB Load Error", e);
+    return null;
+  }
+};
+
+
 export default function SoundboardApp() {
   const [sounds, setSounds] = useState([
     {
@@ -107,7 +145,7 @@ export default function SoundboardApp() {
     id: 'tutorial-demo-1',
     name: 'Tutorial SFX',
     category: 'Tutorial',
-    src: 'demo_beep',
+    src: '/tutorial-sfx.mp3', // Updated to load external MP3
     image: null,
     color: 8, // Indigo
     keybind: '',
@@ -125,7 +163,7 @@ export default function SoundboardApp() {
     id: 'tutorial-demo-2',
     name: 'Tutorial Ambient',
     category: 'Tutorial',
-    src: 'demo_beep',
+    src: '/tutorial-ambient.mp3', // Updated to load external MP3
     image: null,
     color: 1, // Cyan
     keybind: '',
@@ -156,6 +194,7 @@ export default function SoundboardApp() {
   const [showTutorial, setShowTutorial] = useState(false);
 
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const previewAudioRef = useRef(null);
   const fileInputRef = useRef(null);
   const pauseFadeTimeoutRef = useRef(null);
@@ -189,6 +228,37 @@ export default function SoundboardApp() {
 
     document.head.appendChild(link);
   }, []);
+
+  // --- COMPONENT MOUNT LOAD ---
+  useEffect(() => {
+    const loadState = async () => {
+      const savedMasterVol = await loadFromDB('masterVolume');
+      if (savedMasterVol !== null && savedMasterVol !== undefined) setMasterVolume(savedMasterVol);
+
+      const savedSounds = await loadFromDB('sounds');
+      if (savedSounds && savedSounds.length > 0) {
+        setSounds(savedSounds);
+      }
+      setIsLoaded(true);
+    };
+    loadState();
+  }, []);
+
+  // --- AUTO-SAVE LOGIC ---
+  useEffect(() => {
+    if (!isLoaded) return;
+    const timer = setTimeout(async () => {
+      saveToDB('masterVolume', masterVolume);
+
+      const serializedSounds = await Promise.all(sounds.map(async (sound) => {
+        const src = sound.src.startsWith('blob:') ? await blobToDataURL(sound.src) : sound.src;
+        const image = sound.image && sound.image.startsWith('blob:') ? await blobToDataURL(sound.image) : sound.image;
+        return { ...sound, src, image };
+      }));
+      saveToDB('sounds', serializedSounds);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [sounds, masterVolume, isLoaded]);
 
   // Cleanup
   useEffect(() => {
@@ -1554,12 +1624,37 @@ export default function SoundboardApp() {
               <h2 className="text-xl font-bold text-white">
                 {editingSound.id ? 'Edit Button' : 'New Button'}
               </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                {editingSound.id && editingSound.src && editingSound.src !== 'demo_beep' && !editingSound.id.startsWith('tutorial-demo') && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        let urlToDownload = editingSound.src;
+                        // Attempt to make sure it's downloadable if it's already a regular link
+                        // If it's data/blob, just use it
+                        const a = document.createElement('a');
+                        a.href = urlToDownload;
+                        a.download = `${editingSound.name || 'sound'}.mp3`; // Fallback extension
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      } catch (e) {
+                        console.error("Download failed", e);
+                      }
+                    }}
+                    className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-slate-700 rounded-lg transition-colors"
+                    title="Download Individual Sound File"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-slate-400 hover:text-white transition-colors p-2"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
