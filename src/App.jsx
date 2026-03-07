@@ -1288,18 +1288,75 @@ export default function SoundboardApp() {
               </section>
 
               {/* Playback Modes */}
-              <section className="p-6 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-4">
-                <h4 className="font-bold text-cyan-400 flex items-center gap-2 uppercase text-xs tracking-widest">
-                  <Zap className="w-4 h-4" /> Playback Modes
+              <section className="space-y-6">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <div className="h-px w-8 bg-slate-800"></div> Mode Examples
                 </h4>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-800 rounded-lg"><Zap className="w-4 h-4 text-amber-400" /></div>
-                    <p className="text-sm text-slate-300"><span className="font-bold text-white uppercase text-xs">One-Shot:</span> Best for SFX. <span className="italic text-slate-400">Overlap</span> stacks sounds; <span className="italic text-slate-400">Cut</span> silences the previous instance.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-5 bg-amber-500/5 border border-amber-500/10 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-amber-400" />
+                      <h5 className="font-bold text-white uppercase text-xs tracking-widest">One-Shot Mode</h5>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">Best for short, punchy sounds. High-performance "stacking" allows for rapid fire effects.</p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {['Punches', 'Gunshots', 'Laugh Tracks', 'UI Clicks'].map(ex => (
+                        <span key={ex} className="text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">{ex}</span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-800 rounded-lg"><Power className="w-4 h-4 text-cyan-400" /></div>
-                    <p className="text-sm text-slate-300"><span className="font-bold text-white uppercase text-xs">Toggle:</span> Best for Music/Ambience. Press once to start, press again to stop (with fade if set).</p>
+                  <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Power className="w-5 h-5 text-cyan-400" />
+                      <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">Best for background audio. Press once to start, press again to stop with a smooth fade-out.</p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {['Ambience', 'Music Loops', 'Rain SFX', 'Podcasts'].map(ex => (
+                        <span key={ex} className="text-[10px] px-2 py-0.5 bg-cyan-500/10 text-cyan-400 rounded-full border border-cyan-500/20">{ex}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Edit Mode Demo Guide */}
+              <section className="space-y-6">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <div className="h-px w-8 bg-slate-800"></div> Edit Mode Guide
+                </h4>
+                <div className="bg-slate-800/20 border border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Settings className="w-24 h-24" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-400">
+                        <Settings className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-200 text-sm">1. Toggle Edit</p>
+                        <p className="text-xs text-slate-500 mt-1">Click the Gear icon in the header to enter Edit Mode.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-200 text-sm">2. Hover Tile</p>
+                        <p className="text-xs text-slate-500 mt-1">While in Edit Mode, hover over any sound board tile.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                        <MoreVertical className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-200 text-sm">3. Customize</p>
+                        <p className="text-xs text-slate-500 mt-1">Click the vertical dots icon to adjust volume, fades, and modes.</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
