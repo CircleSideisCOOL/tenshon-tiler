@@ -5,7 +5,7 @@ import {
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power,
   Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare
 } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -1222,7 +1222,8 @@ export default function SoundboardApp() {
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
