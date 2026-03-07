@@ -1304,24 +1304,6 @@ export default function SoundboardApp() {
                 </div>
               </section>
 
-              {/* Deployment info */}
-              <section className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="h-px w-8 bg-slate-800"></div> Going Live
-                </h4>
-                <div className="p-5 bg-slate-800/30 border border-slate-700 rounded-xl space-y-3">
-                  <p className="text-sm text-slate-400">Ready to put this on the internet?</p>
-                  <ol className="text-xs text-slate-400 space-y-2 list-decimal ml-4">
-                    <li>Run <code className="text-cyan-400 bg-black/40 px-1 rounded">npm run build</code> in your terminal.</li>
-                    <li>Upload the <code className="text-white">dist</code> folder to <strong>Vercel</strong>, <strong>Netlify</strong>, or <strong>GitHub Pages</strong>.</li>
-                    <li>Ensure your audio files are in the <code className="text-white">public/</code> folder for the best compatibility.</li>
-                  </ol>
-                  <a href="https://vitejs.dev/guide/static-deploy.html" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300 pt-2 font-bold group">
-                    Vite Deployment Guide <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                  </a>
-                </div>
-              </section>
-
             </div>
 
             <div className="p-6 border-t border-slate-800 bg-slate-800/50 flex justify-center">
