@@ -180,8 +180,6 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
         }
       };
       update();
-    } else {
-      setLocalRemaining(0);
     }
     return () => cancelAnimationFrame(animId);
   }, [fadeInfo]);
@@ -262,7 +260,9 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
               <div className={`p-1 rounded flex items-center gap-1 ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title={modeLabel}>
                 <ModeIcon className="w-3 h-3" />
                 <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                  {!(sound.mode === 'toggle' || sound.mode === 'toggle-restart') && <span className="opacity-60 font-medium">ONE-SHOT:</span>}
+                  <span className="opacity-60 font-medium">
+                    {(sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? 'TOGGLABLE:' : 'ONE-SHOT:'}
+                  </span>
                   {modeLabel}
                 </span>
               </div>
@@ -1578,6 +1578,13 @@ export default function SoundboardApp() {
                   ))}
                 </SortableContext>
               </DndContext>
+              <button
+                onClick={openNewSoundModal}
+                className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
+                title="Add to Category"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
@@ -1744,7 +1751,7 @@ export default function SoundboardApp() {
                       { title: "Low Latency", desc: "Uses Web Audio API for instant response.", icon: Zap, color: "text-amber-400" },
                       { title: "Hierarchy", desc: "Use '/' in categories to create folders.", icon: Folder, color: "text-cyan-400" },
                       { title: "Fades & Timers", desc: "Live countdowns for every transition.", icon: Activity, color: "text-indigo-400" },
-                      { title: "Dual Toggles", desc: "Choice between Pausable or Fixed Restart.", icon: Power, color: "text-rose-400" }
+                      { title: "Dual Toggles", desc: "Choice between Pausable or Restart.", icon: Power, color: "text-rose-400" }
                     ].map((f, i) => (
                       <div key={i} className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-slate-600 transition-colors">
                         <f.icon className={`w-5 h-5 mb-2 ${f.color}`} />
@@ -1810,7 +1817,7 @@ export default function SoundboardApp() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Power className="w-5 h-5 text-cyan-400" />
-                          <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle (Pausable)</h5>
+                          <h5 className="font-bold text-white uppercase text-xs tracking-widest">Togglable : Pausable</h5>
                         </div>
                         <div className="flex gap-1">
                           <div className={`w-1.5 h-1.5 rounded-full ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-400 animate-pulse shadow-[0_0_5px_cyan]' : 'bg-slate-700'}`} />
@@ -1835,13 +1842,13 @@ export default function SoundboardApp() {
                 {/* Restart vs Pausable */}
                 <section className="space-y-6">
                   <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="h-px w-8 bg-slate-800"></div> Toggle Behaviors
+                    <div className="h-px w-8 bg-slate-800"></div> Togglable Comparison
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
                       <div className="flex items-center gap-2">
                         <RotateCcw className="w-4 h-4 text-indigo-400" />
-                        <p className="text-xs font-bold text-slate-200 text-cyan-400 uppercase tracking-widest">Restart Mode</p>
+                        <p className="text-xs font-bold text-slate-200 text-cyan-400 uppercase tracking-widest">Togglable : Restart</p>
                       </div>
                       <p className="text-[10px] text-slate-500 leading-relaxed">Always starts from the beginning (0:00). Ideal for stingers or repetitive music beds.</p>
                       <button
