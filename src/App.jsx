@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.0",
+  version: "1.3.1",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1418,65 +1418,67 @@ export default function SoundboardApp() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const handleDragOverCategories = (event) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      if (over.id === 'All' || over.id.startsWith('nav-breadcrumb-')) {
-        // Only glow if we are actually nested (navigation path contains something we can move up from)
-        if (navigationPath.length > 0) {
-          setNestingTargetId(over.id);
-        }
-        return;
-      }
+  const getDropTarget = (active, over) => {
+    if (over && (over.id === 'All' || over.id.startsWith('nav-breadcrumb-'))) {
+      if (navigationPath.length > 0) return over.id;
+    }
+    const activeRect = active.rect.current?.translated;
+    if (!activeRect) return null;
 
-      const targetItem = categories.find(c => c.fullName === over.id);
-      if (targetItem?.isFolder) {
-        const overElement = document.getElementById(`category-${over.id}`);
-        const overRect = overElement ? overElement.getBoundingClientRect() : event.over.rect;
-        const activeRect = event.active.rect.current.translated;
-        // ONLY NEST IF CENTERED (15% to 85%) - True Visual Coordinates
-        const dropInCenter = overRect && activeRect && (
-          activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
-          activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
-        );
-        if (dropInCenter) {
-          setNestingTargetId(over.id);
-          return;
+    let bestFolderId = null;
+    let maxOverlap = 0;
+
+    for (const cat of categories) {
+      if (!cat.isFolder || cat.fullName === active.id) continue;
+      const el = document.getElementById(`category-${cat.fullName}`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+
+      const overlapStart = Math.max(activeRect.left, rect.left);
+      const overlapEnd = Math.min(activeRect.left + activeRect.width, rect.left + rect.width);
+      const overlapWidth = overlapEnd - overlapStart;
+
+      const overlapVStart = Math.max(activeRect.top, rect.top);
+      const overlapVEnd = Math.min(activeRect.top + activeRect.height, rect.top + rect.height);
+      const overlapHeight = overlapVEnd - overlapVStart;
+
+      if (overlapWidth > rect.width * 0.3 && overlapHeight > 0) {
+        if (overlapWidth > maxOverlap) {
+          maxOverlap = overlapWidth;
+          bestFolderId = cat.fullName;
         }
       }
     }
-    setNestingTargetId(null);
+    return bestFolderId;
+  };
+
+  const handleDragOverCategories = (event) => {
+    const { active, over } = event;
+    const targetId = getDropTarget(active, over);
+    setNestingTargetId(targetId);
   };
 
   const handleDragEndCategories = (event) => {
     const { active, over } = event;
+    const targetNestingId = getDropTarget(active, over);
     setNestingTargetId(null);
-    if (over && active.id !== over.id) {
-      const sourceItem = categories.find(c => c.fullName === active.id);
 
-      // Calculate drop position relative to target center for NESTING check
-      const overElement = document.getElementById(`category-${over.id}`);
-      const overRect = overElement ? overElement.getBoundingClientRect() : event.over.rect;
-      const activeRect = event.active.rect.current.translated;
+    const sourceItem = categories.find(c => c.fullName === active.id);
+    if (!sourceItem) return;
 
-      const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
-        activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
-      );
-
-      // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
-      if ((over.id === 'All' || over.id.startsWith('nav-breadcrumb-')) && sourceItem) {
+    if (targetNestingId) {
+      if (targetNestingId === 'All' || targetNestingId.startsWith('nav-breadcrumb-')) {
         let newBase;
-        if (over.id === 'All' || over.id === 'nav-breadcrumb--1') {
-          newBase = sourceItem.name; // Move to Home
+        if (targetNestingId === 'All' || targetNestingId === 'nav-breadcrumb--1') {
+          newBase = sourceItem.name;
         } else {
-          const breadcrumbIdx = parseInt(over.id.replace('nav-breadcrumb-', ''));
+          const breadcrumbIdx = parseInt(targetNestingId.replace('nav-breadcrumb-', ''));
           const targetPathArr = navigationPath.slice(0, breadcrumbIdx + 1);
           newBase = targetPathArr.join('/') + '/' + sourceItem.name;
         }
 
         const oldBase = sourceItem.fullName;
-        if (oldBase === newBase) return; // No move needed
+        if (oldBase === newBase) return;
 
         setSounds(prev => prev.map(s => {
           const cat = (s.category || 'General').trim() || 'General';
@@ -1485,31 +1487,36 @@ export default function SoundboardApp() {
           }
           return s;
         }));
+
+        setCustomCategoryOrder(prev => prev.map(p => p === oldBase ? newBase : p));
         setStatusMsg(`Moved ${sourceItem.name} up`);
         setTimeout(() => setStatusMsg(''), 2000);
-        return;
-      }
-
-      const targetItem = categories.find(c => c.fullName === over.id);
-
-      // NESTING LOGIC: Drag onto a folder button to move inside it
-      // ONLY nest if dropped in the middle 50% of the folder button
-      if (targetItem?.isFolder && sourceItem && dropInCenter) {
+      } else {
         const oldBase = sourceItem.fullName;
-        const newBase = targetItem.fullName + '/' + sourceItem.name;
+        const targetItem = categories.find(c => c.fullName === targetNestingId);
+        const newBase = targetNestingId + '/' + sourceItem.name;
+        if (oldBase === newBase) return;
 
         setSounds(prev => prev.map(s => {
-          const cat = s.category || 'General';
+          const cat = (s.category || 'General').trim() || 'General';
           if (cat === oldBase || cat.startsWith(oldBase + '/')) {
             return { ...s, category: cat.replace(oldBase, newBase) };
           }
           return s;
         }));
-        setStatusMsg(`Nested ${sourceItem.name} into ${targetItem.name}`);
-        setTimeout(() => setStatusMsg(''), 2000);
-        return;
-      }
 
+        setCustomCategoryOrder(prev => {
+          const cleaned = prev.filter(p => p !== oldBase);
+          cleaned.unshift(newBase);
+          return cleaned;
+        });
+        setStatusMsg(`Nested ${sourceItem.name} into ${targetItem?.name || 'Folder'}`);
+        setTimeout(() => setStatusMsg(''), 2000);
+      }
+      return;
+    }
+
+    if (over && active.id !== over.id) {
       if (over.id === 'All') return;
 
       const oldItems = [...categories].filter(c => c.fullName !== 'All');
