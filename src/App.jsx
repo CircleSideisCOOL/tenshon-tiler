@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.6",
+  version: "1.2.7",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -123,8 +123,8 @@ const loadFromDB = async (key) => {
   }
 };
 
-function BreadcrumbDropTarget({ id, children, onClick, isActive }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+function BreadcrumbDropTarget({ id, children, onClick, isActive, isNestingTarget }) {
+  const { setNodeRef } = useDroppable({ id });
 
   return (
     <button
@@ -132,7 +132,7 @@ function BreadcrumbDropTarget({ id, children, onClick, isActive }) {
       onClick={onClick}
       className={`
         flex items-center gap-1 transition-all px-1.5 py-0.5 rounded-md
-        ${isOver ? 'bg-cyan-500/30 text-white ring-2 ring-cyan-500 scale-110 z-50' : 'hover:text-cyan-400'}
+        ${isNestingTarget ? 'bg-cyan-500/40 text-white ring-2 ring-cyan-400 scale-110 z-50 shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'hover:text-cyan-400'}
         ${isActive ? 'text-cyan-500' : 'text-slate-500'}
       `}
     >
@@ -1421,7 +1421,10 @@ export default function SoundboardApp() {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       if (over.id === 'All' || over.id.startsWith('nav-breadcrumb-')) {
-        setNestingTargetId(over.id);
+        // Only glow if we are actually nested (navigation path contains something we can move up from)
+        if (navigationPath.length > 0) {
+          setNestingTargetId(over.id);
+        }
         return;
       }
 
@@ -1429,10 +1432,10 @@ export default function SoundboardApp() {
       if (targetItem?.isFolder) {
         const overRect = event.over.rect;
         const activeRect = event.active.rect.current.translated;
-        // ONLY NEST IF CENTERED (25% to 75%)
+        // ONLY NEST IF CENTERED (15% to 85%) - More forgiving hitbox
         const dropInCenter = overRect && activeRect && (
-          activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.25 &&
-          activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.75
+          activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
+          activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
         );
         if (dropInCenter) {
           setNestingTargetId(over.id);
@@ -1454,8 +1457,8 @@ export default function SoundboardApp() {
       const activeRect = event.active.rect.current.translated;
 
       const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.25 &&
-        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.75
+        activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
+        activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
       );
 
       // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
@@ -1674,7 +1677,11 @@ export default function SoundboardApp() {
             <div className="flex flex-col gap-3">
               {(navigationPath.length > 0 || isEditMode) && (
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
-                  <BreadcrumbDropTarget id="nav-breadcrumb--1" onClick={resetNav}>
+                  <BreadcrumbDropTarget
+                    id="nav-breadcrumb--1"
+                    onClick={resetNav}
+                    isNestingTarget={nestingTargetId === 'nav-breadcrumb--1' || (nestingTargetId === 'All' && navigationPath.length > 0)}
+                  >
                     <Home className="w-3 h-3" /> Home
                   </BreadcrumbDropTarget>
                   {navigationPath.map((segment, idx) => (
@@ -1684,6 +1691,7 @@ export default function SoundboardApp() {
                         id={`nav-breadcrumb-${idx}`}
                         onClick={() => traverseToPath(idx)}
                         isActive={idx === navigationPath.length - 1}
+                        isNestingTarget={nestingTargetId === `nav-breadcrumb-${idx}`}
                       >
                         {segment}
                       </BreadcrumbDropTarget>
