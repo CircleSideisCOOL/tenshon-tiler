@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.3",
+  version: "1.3.4",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1379,8 +1379,8 @@ export default function SoundboardApp() {
   const filteredSounds = sounds.filter(s => {
     if (s.id.startsWith('tutorial-demo')) return true; // Keep tutorial sounds
     if (s.id === 'tutorial-demo') return false;
-    // Hide placeholders in Play Mode
-    if (!isEditMode && s.isPlaceholder) return false;
+    // Hide placeholders permanently so folders just appear empty
+    if (s.isPlaceholder) return false;
     return true;
   }).filter(s => {
     const cat = s.category || 'General';
@@ -1476,7 +1476,7 @@ export default function SoundboardApp() {
     return bestFolderId;
   };
 
-  const handleDragOverCategories = (event) => {
+  const handleDragMoveCategories = (event) => {
     const { active, over } = event;
     const targetId = getDropTarget(active, over);
     setNestingTargetId(targetId);
@@ -1705,7 +1705,7 @@ export default function SoundboardApp() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragOver={handleDragOverCategories}
+            onDragMove={handleDragMoveCategories}
             onDragEnd={handleDragEndCategories}
           >
             <div className="flex flex-col gap-3">
@@ -2689,7 +2689,7 @@ export default function SoundboardApp() {
                   }
                 }}
               />
-              <p className="text-[10px] text-slate-500 italic">Adding a category creates an empty placeholder beep.</p>
+              <p className="text-[10px] text-slate-500 italic">Adding a category creates an empty folder.</p>
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setShowNewCatModal(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white font-medium">Cancel</button>
