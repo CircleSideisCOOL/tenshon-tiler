@@ -3,7 +3,8 @@ import {
   Play, Square, Plus, Trash2, Settings, Volume2, Music, Upload,
   Keyboard, X, Repeat, MoreVertical, AlertCircle, Image as ImageIcon,
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power,
-  Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare, RotateCcw
+  Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare, RotateCcw,
+  Folder, ChevronRight, Home
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -122,7 +123,7 @@ const loadFromDB = async (key) => {
   }
 };
 
-function SortableCategory({ category, selectedCategory, setSelectedCategory, isEditMode }) {
+function SortableCategory({ category, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: category,
     disabled: !isEditMode || category === 'All'
@@ -135,20 +136,24 @@ function SortableCategory({ category, selectedCategory, setSelectedCategory, isE
     zIndex: isDragging ? 10 : 1,
   };
 
+  const isActive = selectedCategory === category;
+
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <button
-        onClick={() => setSelectedCategory(category)}
+        onClick={() => isFolder ? handleFolderClick(category) : setSelectedCategory(category)}
         {...listeners}
         className={`
-          px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border
-          ${selectedCategory === category
+          px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border flex items-center gap-2
+          ${isActive
             ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
             : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
           ${isEditMode && category !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none' : ''}
         `}
       >
+        {isFolder ? <Folder className="w-3.5 h-3.5 fill-current opacity-60" /> : (category === 'All' ? <Sparkles className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5 opacity-60" />)}
         {category}
+        {isFolder && <ChevronRight className="w-3 h-3 opacity-40 ml-1" />}
       </button>
     </div>
   );
@@ -198,9 +203,9 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
     backgroundPosition: 'center',
   } : {};
 
-  const ModeIcon = (sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? Power : (sound.overlap ? Layers : Scissors);
+  const ModeIcon = (sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? Power : Zap;
   const modeLabel = (sound.mode === 'toggle' || sound.mode === 'toggle-restart')
-    ? (sound.mode === 'toggle' ? 'TOGGLE (P)' : 'TOGGLE (R)')
+    ? (sound.mode === 'toggle' ? 'PAUSABLE' : 'RESTART')
     : (sound.overlap ? 'OVERLAP' : 'CUT');
 
   return (
@@ -256,7 +261,8 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
             <div className="flex gap-1">
               <div className={`p-1 rounded flex items-center gap-1 ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title={modeLabel}>
                 <ModeIcon className="w-3 h-3" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">
+                <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  {!(sound.mode === 'toggle' || sound.mode === 'toggle-restart') && <span className="opacity-60 font-medium">ONE-SHOT:</span>}
                   {modeLabel}
                 </span>
               </div>
@@ -392,6 +398,7 @@ export default function SoundboardApp() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [navigationPath, setNavigationPath] = useState([]); // Folders path
   const [isLoading, setIsLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
@@ -1290,21 +1297,80 @@ export default function SoundboardApp() {
     setShowModal(true);
   };
 
-  const uniqueCats = ['All', ...new Set(sounds.map(s => s.category || 'General'))].sort();
-  const categories = uniqueCats.sort((a, b) => {
-    if (a === 'All') return -1;
-    if (b === 'All') return 1;
-    const indexA = customCategoryOrder.indexOf(a);
-    const indexB = customCategoryOrder.indexOf(b);
+  const uniqueRelevantCategories = ['All', ...new Set(sounds.map(s => s.category || 'General'))];
+
+  // Calculate items for current navigation level
+  const navItems = uniqueRelevantCategories.filter(cat => {
+    if (cat === 'All') return true;
+    const parts = cat.split('/');
+    // Item is in the current navigation path if its prefix matches navigationPath
+    return navigationPath.every((p, i) => parts[i] === p);
+  }).map(cat => {
+    if (cat === 'All') return { name: 'All', isFolder: false, fullName: 'All' };
+    const parts = cat.split('/');
+    const currentPart = parts[navigationPath.length];
+    const isFolder = parts.length > navigationPath.length + 1;
+    // fullName represents the target navigation/category
+    const fullName = navigationPath.concat(currentPart).join('/');
+    return { name: currentPart, isFolder, fullName };
+  }).filter(item => item.name !== undefined);
+
+  // Group by name to identify Folders vs Final Categories
+  const currentLevelItems = [];
+  const seenNames = new Set();
+
+  navItems.forEach(item => {
+    if (!seenNames.has(item.name)) {
+      currentLevelItems.push(item);
+      seenNames.add(item.name);
+    } else if (item.isFolder) {
+      // If we see a folder later, ensure the entry is marked as folder
+      const existing = currentLevelItems.find(i => i.name === item.name);
+      if (existing) existing.isFolder = true;
+    }
+  });
+
+  const categories = currentLevelItems.sort((a, b) => {
+    if (a.name === 'All') return -1;
+    if (b.name === 'All') return 1;
+    const indexA = customCategoryOrder.indexOf(a.fullName);
+    const indexB = customCategoryOrder.indexOf(b.fullName);
     if (indexA !== -1 && indexB !== -1) return indexA - indexB;
     if (indexA !== -1) return -1;
     if (indexB !== -1) return 1;
-    return a.localeCompare(b);
+    return a.name.localeCompare(b.name);
   });
 
-  const filteredSounds = sounds.filter(s =>
-    (selectedCategory === 'All' || (s.category || 'General') === selectedCategory) && s.id !== 'tutorial-demo'
-  );
+  const filteredSounds = sounds.filter(s => {
+    if (s.id.startsWith('tutorial-demo')) return true; // Keep tutorial sounds 
+    const cat = s.category || 'General';
+    if (selectedCategory === 'All') return true;
+
+    // If we pick a category, show sounds IN that category
+    if (!selectedCategory.endsWith('/')) {
+      return cat === selectedCategory;
+    } else {
+      // If we pick a folder, show all sounds starting with that folder
+      return cat.startsWith(selectedCategory);
+    }
+  }).filter(s => s.id !== 'tutorial-demo'); // Final cleanup
+
+  const handleFolderClick = (folderName) => {
+    const newPath = [...navigationPath, folderName];
+    setNavigationPath(newPath);
+    setSelectedCategory(newPath.join('/') + '/');
+  };
+
+  const traverseToPath = (index) => {
+    const newPath = navigationPath.slice(0, index + 1);
+    setNavigationPath(newPath);
+    setSelectedCategory(newPath.join('/') + '/');
+  };
+
+  const resetNav = () => {
+    setNavigationPath([]);
+    setSelectedCategory('All');
+  };
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -1471,20 +1537,48 @@ export default function SoundboardApp() {
 
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCategories}>
-              <SortableContext items={categories} strategy={horizontalListSortingStrategy}>
-                {categories.map(cat => (
-                  <SortableCategory
-                    key={cat}
-                    category={cat}
-                    selectedCategory={selectedCategory}
-                    setSelectedCategory={setSelectedCategory}
-                    isEditMode={isEditMode}
-                  />
+          {/* Navigation Breadcrumbs & Items */}
+          <div className="flex flex-col gap-3">
+            {navigationPath.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
+                <button onClick={resetNav} className="hover:text-cyan-400 flex items-center gap-1 transition-colors">
+                  <Home className="w-3 h-3" /> Home
+                </button>
+                {navigationPath.map((segment, idx) => (
+                  <React.Fragment key={idx}>
+                    <ChevronRight className="w-3 h-3 opacity-30" />
+                    <button
+                      onClick={() => traverseToPath(idx)}
+                      className={`hover:text-cyan-400 transition-colors ${idx === navigationPath.length - 1 ? 'text-cyan-500' : ''}`}
+                    >
+                      {segment}
+                    </button>
+                  </React.Fragment>
                 ))}
-              </SortableContext>
-            </DndContext>
+              </div>
+            )}
+
+            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCategories}>
+                <SortableContext items={categories.map(c => c.fullName)} strategy={horizontalListSortingStrategy}>
+                  {categories.map(cat => (
+                    <SortableCategory
+                      key={cat.fullName}
+                      category={cat.name}
+                      selectedCategory={selectedCategory === cat.fullName ? cat.name : (selectedCategory === cat.fullName + '/' ? cat.name : null)}
+                      setSelectedCategory={() => {
+                        setSelectedCategory(cat.fullName);
+                        // If it's a category (no trailing slash), keep same path
+                        // If it was a folder click, handleFolderClick would have been called
+                      }}
+                      handleFolderClick={() => handleFolderClick(cat.name)}
+                      isFolder={cat.isFolder}
+                      isEditMode={isEditMode}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
           </div>
 
         </div>
@@ -1648,9 +1742,9 @@ export default function SoundboardApp() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {[
                       { title: "Low Latency", desc: "Uses Web Audio API for instant response.", icon: Zap, color: "text-amber-400" },
-                      { title: "Machine Gun", desc: "Polyphonic support—spam keys without cuts.", icon: Activity, color: "text-cyan-400" },
-                      { title: "Fades & Loops", desc: "Smooth transitions up to 5s.", icon: Repeat, color: "text-indigo-400" },
-                      { title: "Customization", desc: "Upload your own images and colors.", icon: ImageIcon, color: "text-rose-400" }
+                      { title: "Hierarchy", desc: "Use '/' in categories to create folders.", icon: Folder, color: "text-cyan-400" },
+                      { title: "Fades & Timers", desc: "Live countdowns for every transition.", icon: Activity, color: "text-indigo-400" },
+                      { title: "Dual Toggles", desc: "Choice between Pausable or Fixed Restart.", icon: Power, color: "text-rose-400" }
                     ].map((f, i) => (
                       <div key={i} className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-slate-600 transition-colors">
                         <f.icon className={`w-5 h-5 mb-2 ${f.color}`} />
@@ -1716,20 +1810,60 @@ export default function SoundboardApp() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Power className="w-5 h-5 text-cyan-400" />
-                          <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle Mode</h5>
+                          <h5 className="font-bold text-white uppercase text-xs tracking-widest">Toggle (Pausable)</h5>
                         </div>
                         <div className="flex gap-1">
                           <div className={`w-1.5 h-1.5 rounded-full ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-400 animate-pulse shadow-[0_0_5px_cyan]' : 'bg-slate-700'}`} />
                         </div>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">Best for background audio. Press once to start, press again to stop with a smooth fade-out.</p>
+                      <p className="text-xs text-slate-400 leading-relaxed">Resumes from where you left off. Perfect for long ambient loops or background tracks.</p>
                       <div className="flex flex-wrap gap-2 pt-1 border-t border-cyan-500/10 mt-2 pt-3">
                         <button
-                          onClick={() => playSound('tutorial-demo-2')}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-500 text-slate-900 border-cyan-400' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30'}`}
+                          onClick={() => {
+                            setTutorialSound2(prev => ({ ...prev, mode: 'toggle' }));
+                            playSound('tutorial-demo-2');
+                          }}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${activeSounds['tutorial-demo-2'] && tutorialSound2.mode === 'toggle' ? 'bg-cyan-500 text-slate-900 border-cyan-400' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30'}`}
                         >
-                          <Power className="w-3 h-3" /> {activeSounds['tutorial-demo-2'] ? 'Stop Ambient' : 'Start Ambient'}
+                          <Pause className="w-3 h-3" /> {activeSounds['tutorial-demo-2'] && tutorialSound2.mode === 'toggle' ? 'Pause Ambient' : 'Start Ambient'}
                         </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Restart vs Pausable */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> Toggle Behaviors
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="w-4 h-4 text-indigo-400" />
+                        <p className="text-xs font-bold text-slate-200 text-cyan-400 uppercase tracking-widest">Restart Mode</p>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">Always starts from the beginning (0:00). Ideal for stingers or repetitive music beds.</p>
+                      <button
+                        onClick={() => {
+                          setTutorialSound2(prev => ({ ...prev, mode: 'toggle-restart' }));
+                          if (!activeSounds['tutorial-demo-2']) playSound('tutorial-demo-2');
+                        }}
+                        className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeSounds['tutorial-demo-2'] && tutorialSound2.mode === 'toggle-restart' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20'}`}
+                      >
+                        Test Restart
+                      </button>
+                    </div>
+                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Folder className="w-4 h-4 text-cyan-400" />
+                        <p className="text-xs font-bold text-slate-200 uppercase tracking-widest">Nesting / Folders</p>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">Use "/" in the Category field to create folders. Organize by Act/Scene/Object automatically!</p>
+                      <div className="flex gap-2 pt-2">
+                        <div className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-cyan-400">
+                          Act 1/Props/Sword
+                        </div>
                       </div>
                     </div>
                   </div>
