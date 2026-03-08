@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.1",
+  version: "1.3.2",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1419,14 +1419,34 @@ export default function SoundboardApp() {
   );
 
   const getDropTarget = (active, over) => {
-    if (over && (over.id === 'All' || over.id.startsWith('nav-breadcrumb-'))) {
-      if (navigationPath.length > 0) return over.id;
-    }
     const activeRect = active.rect.current?.translated;
     if (!activeRect) return null;
 
+    const centerX = activeRect.left + activeRect.width / 2;
+    const centerY = activeRect.top + activeRect.height / 2;
+
+    if (navigationPath.length > 0) {
+      const breadcrumbIds = ['nav-breadcrumb--1', ...navigationPath.map((_, i) => `nav-breadcrumb-${i}`)];
+      for (const id of breadcrumbIds) {
+        const el = document.getElementById(id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top && centerY <= rect.bottom) {
+            return id;
+          }
+        }
+      }
+
+      const allEl = document.getElementById('category-All');
+      if (allEl) {
+        const rect = allEl.getBoundingClientRect();
+        if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top && centerY <= rect.bottom) {
+          return 'All';
+        }
+      }
+    }
+
     let bestFolderId = null;
-    let maxOverlap = 0;
 
     for (const cat of categories) {
       if (!cat.isFolder || cat.fullName === active.id) continue;
@@ -1434,19 +1454,12 @@ export default function SoundboardApp() {
       if (!el) continue;
       const rect = el.getBoundingClientRect();
 
-      const overlapStart = Math.max(activeRect.left, rect.left);
-      const overlapEnd = Math.min(activeRect.left + activeRect.width, rect.left + rect.width);
-      const overlapWidth = overlapEnd - overlapStart;
-
-      const overlapVStart = Math.max(activeRect.top, rect.top);
-      const overlapVEnd = Math.min(activeRect.top + activeRect.height, rect.top + rect.height);
-      const overlapHeight = overlapVEnd - overlapVStart;
-
-      if (overlapWidth > rect.width * 0.3 && overlapHeight > 0) {
-        if (overlapWidth > maxOverlap) {
-          maxOverlap = overlapWidth;
-          bestFolderId = cat.fullName;
-        }
+      if (centerX >= rect.left + rect.width * 0.25 &&
+        centerX <= rect.right - rect.width * 0.25 &&
+        centerY >= rect.top &&
+        centerY <= rect.bottom) {
+        bestFolderId = cat.fullName;
+        break;
       }
     }
     return bestFolderId;
