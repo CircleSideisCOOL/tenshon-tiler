@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.4",
+  version: "1.3.5",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -141,7 +141,7 @@ function BreadcrumbDropTarget({ id, children, onClick, isActive, isNestingTarget
   );
 }
 
-function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick, isNestingTarget }) {
+function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick, isNestingTarget, handleDeleteCategory }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: fullName,
     disabled: !isEditMode
@@ -157,7 +157,7 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
   const isActive = selectedCategory === category;
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} className="relative group">
       <button
         id={`category-${fullName}`}
         onClick={() => isFolder ? handleFolderClick(category) : setSelectedCategory(category)}
@@ -175,6 +175,18 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
         {category}
         {isFolder && <ChevronRight className="w-3 h-3 opacity-40 ml-1" />}
       </button>
+      {isEditMode && fullName !== 'All' && handleDeleteCategory && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteCategory(fullName);
+          }}
+          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 hover:scale-110 z-20 pointer-events-auto"
+          title={`Delete ${category} (moves contents to parent)`}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1412,6 +1424,39 @@ export default function SoundboardApp() {
     setSelectedCategory('All');
   };
 
+  const handleDeleteCategory = (fullName) => {
+    if (window.confirm(`Delete "${fullName}"?\nAny folders or sounds inside will be moved to the parent level.`)) {
+      const parts = fullName.split('/');
+      const newBase = parts.length > 1 ? parts.slice(0, -1).join('/') : 'General';
+      const categoryName = parts[parts.length - 1];
+
+      setSounds(prev => {
+        let updated = prev.filter(s => !(s.isPlaceholder && s.category === fullName));
+
+        return updated.map(s => {
+          const cat = (s.category || 'General').trim() || 'General';
+          if (cat === fullName) {
+            return { ...s, category: newBase };
+          } else if (cat.startsWith(fullName + '/')) {
+            const remainder = cat.substring(fullName.length + 1);
+            const migratedCat = newBase === 'General' ? remainder : newBase + '/' + remainder;
+            return { ...s, category: migratedCat };
+          }
+          return s;
+        });
+      });
+
+      setCustomCategoryOrder(prev => prev.filter(p => p !== fullName));
+
+      if (selectedCategory === fullName || selectedCategory?.startsWith(fullName + '/')) {
+        setSelectedCategory('All');
+        setNavigationPath([]);
+      }
+      setStatusMsg(`Deleted category ${categoryName}`);
+      setTimeout(() => setStatusMsg(''), 2000);
+    }
+  };
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
@@ -1750,6 +1795,7 @@ export default function SoundboardApp() {
                         isFolder={cat.isFolder}
                         isEditMode={isEditMode}
                         isNestingTarget={nestingTargetId === cat.fullName}
+                        handleDeleteCategory={handleDeleteCategory}
                       />
                     ))}
                   </SortableContext>
