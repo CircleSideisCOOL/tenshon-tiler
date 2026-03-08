@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.8",
+  version: "1.3.9",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -180,7 +180,13 @@ function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInf
         tabIndex={0}
         onPointerDown={(e) => {
           if (!isEditMode) {
-            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (e.pointerType === 'mouse' && e.button === 0) {
+              playSound(sound.id);
+            }
+          }
+        }}
+        onPointerUp={(e) => {
+          if (!isEditMode && e.pointerType !== 'mouse') {
             playSound(sound.id);
           }
         }}
@@ -401,7 +407,13 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
           onPointerDown={(e) => {
             if (!isEditMode) {
               // Ensure we only trigger on primary button (left click) for mouse
-              if (e.pointerType === 'mouse' && e.button !== 0) return;
+              if (e.pointerType === 'mouse' && e.button === 0) {
+                playSound(sound.id);
+              }
+            }
+          }}
+          onPointerUp={(e) => {
+            if (!isEditMode && e.pointerType !== 'mouse') {
               playSound(sound.id);
             }
           }}
@@ -2178,8 +2190,8 @@ export default function SoundboardApp() {
                     <button
                       onClick={() => setTutorialEditMode(!tutorialEditMode)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${tutorialEditMode
-                          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'
+                        ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'
                         }`}
                     >
                       <Settings className={`w-3.5 h-3.5 ${tutorialEditMode ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
