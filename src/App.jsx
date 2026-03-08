@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.4",
+  version: "1.2.5",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1429,9 +1429,10 @@ export default function SoundboardApp() {
       if (targetItem?.isFolder) {
         const overRect = event.over.rect;
         const activeRect = event.active.rect.current.translated;
+        // ONLY NEST IF CENTERED (20% to 80%)
         const dropInCenter = overRect && activeRect && (
-          activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.15 &&
-          activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.85
+          activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.20 &&
+          activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.80
         );
         if (dropInCenter) {
           setNestingTargetId(over.id);
@@ -1453,8 +1454,8 @@ export default function SoundboardApp() {
       const activeRect = event.active.rect.current.translated;
 
       const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.15 &&
-        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.85
+        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.20 &&
+        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.80
       );
 
       // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
