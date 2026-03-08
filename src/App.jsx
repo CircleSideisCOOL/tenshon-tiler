@@ -6,7 +6,7 @@ import {
   Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare, RotateCcw,
   Folder, ChevronRight, Home, FolderPlus, PlusCircle
 } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay, useDroppable } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.2",
+  version: "1.2.3",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -122,6 +122,24 @@ const loadFromDB = async (key) => {
     return null;
   }
 };
+
+function BreadcrumbDropTarget({ id, children, onClick, isActive }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onClick}
+      className={`
+        flex items-center gap-1 transition-all px-1.5 py-0.5 rounded-md
+        ${isOver ? 'bg-cyan-500/30 text-white ring-2 ring-cyan-500 scale-110 z-50' : 'hover:text-cyan-400'}
+        ${isActive ? 'text-cyan-500' : 'text-slate-500'}
+      `}
+    >
+      {children}
+    </button>
+  );
+}
 
 function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
@@ -1082,7 +1100,14 @@ export default function SoundboardApp() {
           return { ...sound, src, image };
         }));
 
-        const jsonString = JSON.stringify(serializedSounds);
+        const configData = {
+          sounds: serializedSounds,
+          customCategoryOrder,
+          version: APP_CONFIG.version,
+          timestamp: Date.now()
+        };
+
+        const jsonString = JSON.stringify(configData);
         let blob;
         let filename = "tenshon_tiler_data.json";
 
@@ -1141,7 +1166,10 @@ export default function SoundboardApp() {
           jsonString = await file.text();
         }
 
-        const importedSounds = JSON.parse(jsonString);
+        const importedData = JSON.parse(jsonString);
+        let importedSounds = Array.isArray(importedData) ? importedData : (importedData.sounds || []);
+        let importedOrder = (!Array.isArray(importedData) && importedData.customCategoryOrder) ? importedData.customCategoryOrder : [];
+
         if (Array.isArray(importedSounds)) {
           stopAll();
           bufferCacheRef.current = {};
@@ -1158,6 +1186,7 @@ export default function SoundboardApp() {
           }));
 
           setSounds(migratedSounds);
+          if (importedOrder.length > 0) setCustomCategoryOrder(importedOrder);
           setSelectedCategory('All');
           setStatusMsg("Import Successful!");
         } else {
@@ -1392,27 +1421,46 @@ export default function SoundboardApp() {
     if (over && active.id !== over.id) {
       const sourceItem = categories.find(c => c.fullName === active.id);
 
-      // MOVE TO HOME (Un-nest)
-      if (over.id === 'All' && sourceItem) {
+      // Calculate drop position relative to target center for NESTING check
+      const overRect = event.over.rect;
+      const activeRect = event.active.rect.current.translated;
+
+      const dropInCenter = overRect && activeRect && (
+        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.25 &&
+        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.75
+      );
+
+      // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
+      if ((over.id === 'All' || over.id.startsWith('nav-breadcrumb-')) && sourceItem) {
+        let newBase;
+        if (over.id === 'All' || over.id === 'nav-breadcrumb--1') {
+          newBase = sourceItem.name; // Move to Home
+        } else {
+          const breadcrumbIdx = parseInt(over.id.replace('nav-breadcrumb-', ''));
+          const targetPathArr = navigationPath.slice(0, breadcrumbIdx + 1);
+          newBase = targetPathArr.join('/') + '/' + sourceItem.name;
+        }
+
         const oldBase = sourceItem.fullName;
-        const newBase = sourceItem.name;
+        if (oldBase === newBase) return; // No move needed
 
         setSounds(prev => prev.map(s => {
-          const cat = s.category || 'General';
+          const cat = (s.category || 'General').trim() || 'General';
           if (cat === oldBase || cat.startsWith(oldBase + '/')) {
             return { ...s, category: cat.replace(oldBase, newBase) };
           }
           return s;
         }));
-        setStatusMsg(`Moved ${sourceItem.name} to Home`);
+        setStatusMsg(`Moved ${sourceItem.name} up`);
         setTimeout(() => setStatusMsg(''), 2000);
         return;
       }
 
       const targetItem = categories.find(c => c.fullName === over.id);
 
-      // NESTING LOGIC: Drag onto a folder to move inside it
-      if (targetItem?.isFolder && sourceItem) {
+      // NESTING LOGIC: Drag onto a folder button to move inside it
+      // ONLY nest if dropped in the middle 50% of the folder button
+      if (targetItem?.isFolder && sourceItem && dropInCenter) {
         const oldBase = sourceItem.fullName;
         const newBase = targetItem.fullName + '/' + sourceItem.name;
 
@@ -1423,12 +1471,12 @@ export default function SoundboardApp() {
           }
           return s;
         }));
-        setStatusMsg(`Moved ${sourceItem.name} into ${targetItem.name}`);
+        setStatusMsg(`Nested ${sourceItem.name} into ${targetItem.name}`);
         setTimeout(() => setStatusMsg(''), 2000);
         return;
       }
 
-      if (over.id === 'All') return; // Cannot reorder relative to 'All'
+      if (over.id === 'All') return;
 
       const oldItems = [...categories].filter(c => c.fullName !== 'All');
       const activeIndex = oldItems.findIndex(c => c.fullName === active.id);
@@ -1590,20 +1638,21 @@ export default function SoundboardApp() {
 
           {/* Navigation Breadcrumbs & Items */}
           <div className="flex flex-col gap-3">
-            {navigationPath.length > 0 && (
+            {(navigationPath.length > 0 || isEditMode) && (
               <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
-                <button onClick={resetNav} className="hover:text-cyan-400 flex items-center gap-1 transition-colors">
+                <BreadcrumbDropTarget id="nav-breadcrumb--1" onClick={resetNav}>
                   <Home className="w-3 h-3" /> Home
-                </button>
+                </BreadcrumbDropTarget>
                 {navigationPath.map((segment, idx) => (
                   <React.Fragment key={idx}>
                     <ChevronRight className="w-3 h-3 opacity-30" />
-                    <button
+                    <BreadcrumbDropTarget
+                      id={`nav-breadcrumb-${idx}`}
                       onClick={() => traverseToPath(idx)}
-                      className={`hover:text-cyan-400 transition-colors ${idx === navigationPath.length - 1 ? 'text-cyan-500' : ''}`}
+                      isActive={idx === navigationPath.length - 1}
                     >
                       {segment}
-                    </button>
+                    </BreadcrumbDropTarget>
                   </React.Fragment>
                 ))}
                 {isEditMode && (
@@ -2523,7 +2572,7 @@ export default function SoundboardApp() {
                     disabled={!editingSound.src && !editingSound.name}
                     className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95"
                   >
-                    Save Button
+                    Save
                   </button>
                 </div>
               </div>
