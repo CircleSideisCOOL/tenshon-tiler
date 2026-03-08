@@ -3,7 +3,7 @@ import {
   Play, Square, Plus, Trash2, Settings, Volume2, Music, Upload,
   Keyboard, X, Repeat, MoreVertical, AlertCircle, Image as ImageIcon,
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power,
-  Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare
+  Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare, RotateCcw
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -13,6 +13,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
+  version: "1.2.1",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -197,8 +198,10 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
     backgroundPosition: 'center',
   } : {};
 
-  const ModeIcon = sound.mode === 'toggle' ? Power : (sound.overlap ? Layers : Scissors);
-  const modeLabel = sound.mode === 'toggle' ? 'Toggle' : (sound.overlap ? 'Overlap' : 'Cut');
+  const ModeIcon = (sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? Power : (sound.overlap ? Layers : Scissors);
+  const modeLabel = (sound.mode === 'toggle' || sound.mode === 'toggle-restart')
+    ? (sound.mode === 'toggle' ? 'TOGGLE (P)' : 'TOGGLE (R)')
+    : (sound.overlap ? 'OVERLAP' : 'CUT');
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} className="h-full group">
@@ -254,7 +257,7 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
               <div className={`p-1 rounded flex items-center gap-1 ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title={modeLabel}>
                 <ModeIcon className="w-3 h-3" />
                 <span className="text-[10px] font-bold uppercase tracking-wider">
-                  {sound.mode === 'toggle' ? 'TOGGLE' : (sound.overlap ? 'OVERLAP' : 'CUT')}
+                  {modeLabel}
                 </span>
               </div>
               {sound.loop && (
@@ -822,7 +825,7 @@ export default function SoundboardApp() {
     const toggleTargetVol = sound.volume * masterVolume;
 
     // --- MODE 1: TOGGLE (Now uses independent Pause/Resume fades) ---
-    if (sound.mode === 'toggle') {
+    if (sound.mode === 'toggle' || sound.mode === 'toggle-restart') {
       let audio = activeElementsRef.current[id];
 
       // CHECK IF PLAYING -> PAUSE IT
@@ -874,7 +877,14 @@ export default function SoundboardApp() {
       audio.loop = sound.loop;
 
       // Determine if starting from 0 or resuming
-      const isResuming = audio.currentTime > 0 && !audio.ended;
+      let isResuming = audio.currentTime > 0 && !audio.ended;
+
+      // FORCED RESTART LOGIC
+      if (sound.mode === 'toggle-restart') {
+        isResuming = false;
+        audio.currentTime = 0;
+      }
+
       // Use resumeFade if resuming, otherwise fadeIn
       const fadeDuration = isResuming
         ? (sound.resumeFade !== undefined ? sound.resumeFade : 0.1)
@@ -1570,8 +1580,9 @@ export default function SoundboardApp() {
               )}
             </div>
 
-            <div className="mt-8 text-xs text-slate-500 flex items-center justify-center gap-1">
-              {APP_CONFIG.credits.footerText}
+            <div className="mt-8 text-xs text-slate-500 flex flex-col items-center justify-center gap-1">
+              <p>{APP_CONFIG.credits.footerText}</p>
+              <p className="opacity-50 font-mono">v{APP_CONFIG.version}</p>
             </div>
 
             <div className="mt-6 border-t border-slate-700/50 pt-6">
@@ -2222,12 +2233,31 @@ export default function SoundboardApp() {
                       <Zap className="w-3 h-3" /> One-Shot
                     </button>
                     <button
-                      onClick={() => setEditingSound({ ...editingSound, mode: 'toggle' })}
-                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                      onClick={() => setEditingSound({ ...editingSound, mode: (editingSound.mode === 'toggle-restart' ? 'toggle-restart' : 'toggle') })}
+                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${(editingSound.mode === 'toggle' || editingSound.mode === 'toggle-restart') ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                     >
                       <Power className="w-3 h-3" /> Toggle
                     </button>
                   </div>
+
+                  {(editingSound.mode === 'toggle' || editingSound.mode === 'toggle-restart') && (
+                    <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
+                      <button
+                        onClick={() => setEditingSound({ ...editingSound, mode: 'toggle' })}
+                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                        title="Pause and resume from where it left off"
+                      >
+                        <Pause className="w-3 h-3" /> Pausable
+                      </button>
+                      <button
+                        onClick={() => setEditingSound({ ...editingSound, mode: 'toggle-restart' })}
+                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle-restart' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                        title="Always start from the beginning when toggled ON"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Restart
+                      </button>
+                    </div>
+                  )}
 
                   {editingSound.mode === 'restart' && (
                     <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
