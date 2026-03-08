@@ -124,7 +124,7 @@ const loadFromDB = async (key) => {
 };
 
 function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: fullName,
     disabled: !isEditMode || fullName === 'All'
   });
@@ -148,7 +148,8 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
           ${isActive
             ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
             : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
-          ${isEditMode && category !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none' : ''}
+          ${isEditMode && fullName !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none' : ''}
+          ${isOver && isFolder ? 'ring-4 ring-cyan-400 scale-105 bg-cyan-500/40 border-cyan-400 text-white z-50' : ''}
         `}
       >
         {isFolder ? <Folder className="w-3.5 h-3.5 fill-current opacity-60" /> : (category === 'All' ? <Sparkles className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5 opacity-60" />)}
@@ -1219,7 +1220,7 @@ export default function SoundboardApp() {
   const saveSound = () => {
     const soundToSave = {
       ...editingSound,
-      category: editingSound.category.trim() || 'General',
+      category: (editingSound.category || 'General').trim() || 'General',
       isPlaceholder: false // Any time we save, it's a real sound now
     };
 
@@ -2197,7 +2198,7 @@ export default function SoundboardApp() {
 
                   <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
                     <div className="flex items-center gap-4">
-                      <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && COLORS[editingSound.color].class}`}>
+                      <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && (COLORS[editingSound.color]?.class || COLORS[0].class)}`}>
                         {editingSound.image ? (
                           <img src={editingSound.image} alt="Preview" className="w-full h-full object-cover" />
                         ) : (
@@ -2535,6 +2536,7 @@ export default function SoundboardApp() {
                       src: 'demo_beep',
                       volume: 0.5,
                       mode: 'restart',
+                      color: 0,
                       isPlaceholder: true
                     }]);
                     setNewCatName('');
@@ -2557,6 +2559,7 @@ export default function SoundboardApp() {
                     src: 'demo_beep',
                     volume: 0.5,
                     mode: 'restart',
+                    color: 0,
                     isPlaceholder: true
                   }]);
                   setNewCatName('');
