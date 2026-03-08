@@ -153,11 +153,32 @@ function SortableCategory({ category, selectedCategory, setSelectedCategory, isE
   );
 }
 
-function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSound, openEditModal }) {
+function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSound, openEditModal, fadeInfo }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sound.id,
     disabled: !isEditMode
   });
+
+  const [localRemaining, setLocalRemaining] = useState(0);
+
+  useEffect(() => {
+    let animId;
+    if (fadeInfo) {
+      const update = () => {
+        const rem = Math.max(0, fadeInfo.duration - (Date.now() - fadeInfo.startTime) / 1000);
+        setLocalRemaining(rem);
+        if (rem > 0) {
+          animId = requestAnimationFrame(update);
+        } else {
+          setLocalRemaining(0);
+        }
+      };
+      update();
+    } else {
+      setLocalRemaining(0);
+    }
+    return () => cancelAnimationFrame(animId);
+  }, [fadeInfo]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -250,9 +271,22 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
           </div>
 
           <div className="w-full relative z-20 mt-auto pointer-events-none">
-            {isActive && <div className={`text-[10px] font-bold ${isGlobalPaused ? 'text-amber-400' : 'text-cyan-300 animate-pulse'} mb-1 tracking-widest uppercase`}>
-              {isGlobalPaused ? 'PAUSED' : 'PLAYING'}
-            </div>}
+            {isActive && (
+              <div className={`text-[10px] font-bold ${isGlobalPaused ? 'text-amber-400' : 'text-cyan-300'} mb-1 tracking-widest uppercase flex items-center gap-1.5`}>
+                {localRemaining > 0.01 ? (
+                  <>
+                    <span className="animate-pulse">{fadeInfo?.type || 'FADING'}</span>
+                    <span className="bg-black/30 px-1.5 py-0.5 rounded font-mono text-[9px] border border-white/10">
+                      {localRemaining.toFixed(1)}s
+                    </span>
+                  </>
+                ) : (
+                  <span className={!isGlobalPaused ? 'animate-pulse' : ''}>
+                    {isGlobalPaused ? 'PAUSED' : 'PLAYING'}
+                  </span>
+                )}
+              </div>
+            )}
             <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
               {sound.category || 'General'}
             </p>
@@ -358,6 +392,7 @@ export default function SoundboardApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
+  const [activeFades, setActiveFades] = useState({});
   const [showTutorial, setShowTutorial] = useState(false);
   const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
 
@@ -592,6 +627,26 @@ export default function SoundboardApp() {
     }));
   };
 
+  const startFadeTimer = useCallback((id, type, duration) => {
+    if (!duration || duration <= 0.05) return;
+    const now = Date.now();
+    setActiveFades(prev => ({
+      ...prev,
+      [id]: { type, duration, startTime: now }
+    }));
+
+    setTimeout(() => {
+      setActiveFades(prev => {
+        if (prev[id] && prev[id].startTime === now) {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        }
+        return prev;
+      });
+    }, duration * 1000 + 100);
+  }, []);
+
   const toggleGlobalPause = async () => {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -624,6 +679,10 @@ export default function SoundboardApp() {
           // Use sound-specific resume fade or default to 0.1 (quick) if undefined
           const fadeDuration = sound.resumeFade !== undefined ? sound.resumeFade : 0.1;
           const targetVol = sound.volume * masterVolume;
+
+          if (fadeDuration > 0.05) {
+            startFadeTimer(id, 'RESUMING', fadeDuration);
+          }
 
           const steps = 20;
           const stepTime = (fadeDuration * 1000) / steps;
@@ -676,6 +735,10 @@ export default function SoundboardApp() {
           // Use sound-specific pause fade or default
           const fadeDuration = sound.pauseFade !== undefined ? sound.pauseFade : 0.1;
           maxFadeTime = Math.max(maxFadeTime, fadeDuration);
+
+          if (fadeDuration > 0.05) {
+            startFadeTimer(id, 'PAUSING', fadeDuration);
+          }
 
           const startVol = audio.volume;
           const steps = 20;
@@ -785,6 +848,7 @@ export default function SoundboardApp() {
             }
           }, stepTime);
           audio._fadeInterval = fadeInterval;
+          startFadeTimer(id, 'PAUSING', pauseDuration);
         } else {
           audio.pause();
           updateVisualState(id, 'reset');
@@ -840,6 +904,7 @@ export default function SoundboardApp() {
           }
         }, stepTime);
         audio._fadeInterval = fadeInterval;
+        startFadeTimer(id, isResuming ? 'RESUMING' : 'FADE IN', fadeDuration);
       } else {
         audio.volume = safeVol;
         audio.play().catch(e => console.error(e));
@@ -894,6 +959,7 @@ export default function SoundboardApp() {
       if (fadeIn > 0) {
         gainNode.gain.setValueAtTime(0, now);
         gainNode.gain.linearRampToValueAtTime(oneShotTargetVol, now + fadeIn);
+        startFadeTimer(id, 'FADE IN', fadeIn);
       } else {
         gainNode.gain.setValueAtTime(oneShotTargetVol, now);
       }
@@ -920,6 +986,7 @@ export default function SoundboardApp() {
 
     setIsGlobalPaused(false);
     pausedHtmlAudioRef.current.clear();
+    setActiveFades({});
     if (pauseFadeTimeoutRef.current) clearTimeout(pauseFadeTimeoutRef.current);
 
     if (ctx.state === 'suspended') ctx.resume();
@@ -1438,6 +1505,7 @@ export default function SoundboardApp() {
                   isGlobalPaused={isGlobalPaused}
                   playSound={playSound}
                   openEditModal={openEditModal}
+                  fadeInfo={activeFades[sound.id]}
                 />
               ))}
             </SortableContext>
