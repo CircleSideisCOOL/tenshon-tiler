@@ -188,16 +188,24 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
         <div
           role="button"
           tabIndex={0}
-          onClick={() => !isEditMode && playSound(sound.id)}
+          onPointerDown={(e) => {
+            if (!isEditMode) {
+              // Ensure we only trigger on primary button (left click) for mouse
+              if (e.pointerType === 'mouse' && e.button !== 0) return;
+              playSound(sound.id);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               !isEditMode && playSound(sound.id);
             }
           }}
+          onContextMenu={(e) => !isEditMode && e.preventDefault()}
           style={bgStyle}
           className={`
             w-full aspect-square rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
-            transition-none duration-100 ease-out border-b-4 shadow-lg
+            transition-none duration-100 ease-out border-b-4 shadow-lg select-none
+            ${!isEditMode ? 'touch-manipulation cursor-pointer' : 'touch-auto'}
             ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
             ${!isEditMode && 'active:border-b-0 active:translate-y-1'}
             ${isEditMode ? 'cursor-grab active:cursor-grabbing hover:ring-4 ring-cyan-500' : ''}
