@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.2",
+  version: "1.3.3",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1431,7 +1431,7 @@ export default function SoundboardApp() {
         const el = document.getElementById(id);
         if (el) {
           const rect = el.getBoundingClientRect();
-          if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top && centerY <= rect.bottom) {
+          if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top - 50 && centerY <= rect.bottom + 50) {
             return id;
           }
         }
@@ -1440,13 +1440,14 @@ export default function SoundboardApp() {
       const allEl = document.getElementById('category-All');
       if (allEl) {
         const rect = allEl.getBoundingClientRect();
-        if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top && centerY <= rect.bottom) {
+        if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top - 50 && centerY <= rect.bottom + 50) {
           return 'All';
         }
       }
     }
 
     let bestFolderId = null;
+    let maxOverlap = 0;
 
     for (const cat of categories) {
       if (!cat.isFolder || cat.fullName === active.id) continue;
@@ -1454,12 +1455,22 @@ export default function SoundboardApp() {
       if (!el) continue;
       const rect = el.getBoundingClientRect();
 
-      if (centerX >= rect.left + rect.width * 0.25 &&
-        centerX <= rect.right - rect.width * 0.25 &&
-        centerY >= rect.top &&
-        centerY <= rect.bottom) {
-        bestFolderId = cat.fullName;
-        break;
+      // Horizontal overlap check
+      const overlapStart = Math.max(activeRect.left, rect.left);
+      const overlapEnd = Math.min(activeRect.left + activeRect.width, rect.left + rect.width);
+      const overlapWidth = overlapEnd - overlapStart;
+
+      // Relaxed Y constraint (+/- 100px from center)
+      const folderCenterY = rect.top + rect.height / 2;
+      const isVerticallyAligned = Math.abs(centerY - folderCenterY) < 100;
+
+      if (isVerticallyAligned && overlapWidth > 0) {
+        // Require at least 25% overlap of either the active item or the target folder to consider it a nest action
+        const requiredOverlap = Math.min(activeRect.width, rect.width) * 0.25;
+        if (overlapWidth > requiredOverlap && overlapWidth > maxOverlap) {
+          maxOverlap = overlapWidth;
+          bestFolderId = cat.fullName;
+        }
       }
     }
     return bestFolderId;
