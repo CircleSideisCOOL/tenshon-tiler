@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.7",
+  version: "1.2.8",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -167,7 +167,7 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
             ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
             : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
           ${isEditMode && fullName !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none shrink-0' : ''}
-          ${isNestingTarget ? 'ring-4 ring-cyan-400 bg-cyan-500/40 border-cyan-400 text-white z-50' : ''}
+          ${isNestingTarget ? 'ring-[3px] ring-cyan-400 bg-cyan-500/40 border-cyan-400 text-white z-50 shadow-[0_0_15px_rgba(6,182,212,0.4)]' : ''}
         `}
       >
         {isFolder ? <Folder className="w-3.5 h-3.5 fill-current opacity-60" /> : (fullName === 'All' ? <Sparkles className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5 opacity-60" />)}
@@ -1432,10 +1432,10 @@ export default function SoundboardApp() {
       if (targetItem?.isFolder) {
         const overRect = event.over.rect;
         const activeRect = event.active.rect.current.translated;
-        // ONLY NEST IF CENTERED (15% to 85%) - More forgiving hitbox
+        // ONLY NEST IF CENTERED (10% to 90%) - Very forgiving hitbox
         const dropInCenter = overRect && activeRect && (
-          activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
-          activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
+          activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.10) &&
+          activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.90)
         );
         if (dropInCenter) {
           setNestingTargetId(over.id);
@@ -1457,8 +1457,8 @@ export default function SoundboardApp() {
       const activeRect = event.active.rect.current.translated;
 
       const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
-        activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
+        activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.10) &&
+        activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.90)
       );
 
       // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
