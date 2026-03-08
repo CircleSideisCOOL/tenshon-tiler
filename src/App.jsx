@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.6",
+  version: "1.3.7",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -138,6 +138,150 @@ function BreadcrumbDropTarget({ id, children, onClick, isActive, isNestingTarget
     >
       {children}
     </button>
+  );
+}
+
+function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInfo, onEdit }) {
+  const [localRemaining, setLocalRemaining] = useState(0);
+
+  useEffect(() => {
+    let animId;
+    if (fadeInfo) {
+      const update = () => {
+        const rem = Math.max(0, fadeInfo.duration - (Date.now() - fadeInfo.startTime) / 1000);
+        setLocalRemaining(rem);
+        if (rem > 0) {
+          animId = requestAnimationFrame(update);
+        } else {
+          setLocalRemaining(0);
+        }
+      };
+      update();
+    }
+    return () => cancelAnimationFrame(animId);
+  }, [fadeInfo]);
+
+  const color = COLORS[sound.color] || COLORS[0];
+  const bgStyle = sound.image ? {
+    backgroundImage: `url(${sound.image})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  } : {};
+
+  const ModeIcon = (sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? Power : Zap;
+  const modeLabel = (sound.mode === 'toggle' || sound.mode === 'toggle-restart')
+    ? (sound.mode === 'toggle' ? 'PAUSABLE' : 'RESTART')
+    : (sound.overlap ? 'OVERLAP' : 'CUT');
+
+  return (
+    <div className="h-full group aspect-square w-full relative">
+      <div
+        role="button"
+        tabIndex={0}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          playSound(sound.id);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            playSound(sound.id);
+          }
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+        style={bgStyle}
+        className={`
+          w-full h-full rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
+          transition-none duration-100 ease-out border-b-4 shadow-lg select-none
+          touch-manipulation cursor-pointer
+          ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
+          active:border-b-0 active:translate-y-1
+          ${isActive
+            ? (sound.image
+              ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]'
+              : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`)
+            : ''}
+        `}
+      >
+        {sound.image && (
+          <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity ${isActive ? 'opacity-80' : 'opacity-60'}`} />
+        )}
+
+        {isActive && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <div className={`bg-black/60 backdrop-blur-sm rounded-full p-3 border border-white/20 ${!isGlobalPaused && 'animate-Pulse'}`}>
+              {isGlobalPaused ? <Pause className="w-8 h-8 text-amber-400" /> : <Activity className="w-8 h-8 text-cyan-400" />}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-between items-start w-full relative z-20 pointer-events-none">
+          <div className="flex gap-1">
+            <div className={`p-1 rounded flex items-center gap-1 ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title={modeLabel}>
+              <ModeIcon className="w-3 h-3" />
+              <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                <span className="opacity-60 font-medium whitespace-nowrap hidden sm:inline">
+                  {(sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? 'TOGGLABLE:' : 'ONE-SHOT:'}
+                </span>
+                {modeLabel}
+              </span>
+            </div>
+            {sound.loop && (
+              <div className={`p-1 rounded ${sound.image ? 'bg-black/40 text-cyan-400' : 'bg-black/20 text-white/90'}`} title="Looping">
+                <Repeat className="w-3 h-3" />
+              </div>
+            )}
+          </div>
+          {sound.keybind && (
+            <span className="bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded text-xs font-bold font-mono text-white border border-white/10 shrink-0">
+              {sound.keybind}
+            </span>
+          )}
+        </div>
+
+        <div className="w-full relative z-20 mt-auto pointer-events-none">
+          {isActive && (
+            <div className={`text-[10px] font-bold ${isGlobalPaused ? 'text-amber-400' : 'text-cyan-300'} mb-1 tracking-widest uppercase flex items-center gap-1.5`}>
+              {localRemaining > 0.01 ? (
+                <>
+                  <span className="animate-pulse">{fadeInfo?.type || 'FADING'}</span>
+                  <span className="bg-black/30 px-1.5 py-0.5 rounded font-mono text-[9px] border border-white/10">
+                    {localRemaining.toFixed(1)}s
+                  </span>
+                </>
+              ) : (
+                <span className={!isGlobalPaused ? 'animate-pulse' : ''}>
+                  {isGlobalPaused ? 'PAUSED' : 'PLAYING'}
+                </span>
+              )}
+            </div>
+          )}
+          <p className={`text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate ${sound.image ? 'text-cyan-400' : 'opacity-75 mix-blend-screen'}`}>
+            {sound.category || 'General'}
+          </p>
+          <h3 className={`font-bold text-lg leading-tight text-white drop-shadow-md ${sound.note ? 'truncate' : 'line-clamp-4'}`}>
+            {sound.name}
+          </h3>
+          {sound.note && (
+            <p className={`text-[10px] mt-0.5 leading-snug line-clamp-4 italic font-medium ${sound.image ? 'text-white drop-shadow-md' : 'text-white/80 mix-blend-screen'}`}>
+              {sound.note}
+            </p>
+          )}
+        </div>
+
+        {isActive && !sound.image && (
+          <div className={`absolute inset-0 bg-white/20 ${!isGlobalPaused && 'animate-pulse'} z-0`}></div>
+        )}
+      </div>
+
+      <button
+        onClick={(e) => { e.stopPropagation(); onEdit(sound); }}
+        className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30 pointer-events-auto"
+      >
+        <div className="bg-slate-800 p-3 rounded-full border border-slate-600 hover:scale-110 transition-transform shadow-xl pointer-events-auto cursor-pointer">
+          <Settings className="w-8 h-8 text-cyan-400" />
+        </div>
+      </button>
+    </div>
   );
 }
 
@@ -2017,237 +2161,101 @@ export default function SoundboardApp() {
                   </div>
                 </section>
 
-                {/* Playback Modes */}
+                {/* Live Experiments */}
                 <section className="space-y-6">
                   <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="h-px w-8 bg-slate-800"></div> Mode Examples
+                    <div className="h-px w-8 bg-slate-800"></div> Live Experiments
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-5 bg-amber-500/5 border border-amber-500/10 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-5 h-5 text-amber-400" />
-                        <h5 className="font-bold text-white uppercase text-xs tracking-widest">One-Shot Mode</h5>
+                  <div className="space-y-8">
+                    {/* Experiment 1 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-amber-400" />
+                          <h5 className="font-bold text-white uppercase tracking-widest text-sm">Overlay vs Cut</h5>
+                        </div>
+                        <p className="text-sm text-slate-400 leading-relaxed">
+                          For One-Shot playback, you can choose if the sound interrupts itself (<span className="text-white font-bold">Cut</span>) or overlaps itself (<span className="text-white font-bold">Overlay</span>).
+                          Try spamming the tile to hear the difference!
+                        </p>
+                        <div className="flex gap-2 p-1 bg-slate-900 rounded-lg">
+                          <button
+                            onClick={() => setTutorialSound1(prev => ({ ...prev, overlap: true }))}
+                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${tutorialSound1.overlap ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                          >
+                            Overlay
+                          </button>
+                          <button
+                            onClick={() => setTutorialSound1(prev => ({ ...prev, overlap: false }))}
+                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${!tutorialSound1.overlap ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                          >
+                            Cut
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 italic mt-4 pt-4 border-t border-slate-700/50">
+                          Hover over the tile to test the Edit Mode gear!
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">Best for short, punchy sounds. High-performance "stacking" allows for rapid fire effects.</p>
-                      <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/10 mt-2 pt-3">
-                        <button
-                          onClick={() => playSound('tutorial-demo-1')}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 border border-amber-500/20"
-                        >
-                          <Play className="w-3 h-3" /> Play SFX
-                        </button>
+                      <div className="flex items-center justify-center p-4">
+                        <div className="w-full max-w-[200px] aspect-square">
+                          <TutorialSoundTile
+                            sound={tutorialSound1}
+                            isActive={activeSounds[tutorialSound1.id]}
+                            isGlobalPaused={isGlobalPaused}
+                            playSound={playSound}
+                            fadeInfo={activeFades[tutorialSound1.id]}
+                            onEdit={openEditModal}
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between">
+
+                    {/* Experiment 2 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50">
+                      <div className="space-y-4">
                         <div className="flex items-center gap-2">
                           <Power className="w-5 h-5 text-cyan-400" />
-                          <h5 className="font-bold text-white uppercase text-xs tracking-widest">Togglable : Pausable</h5>
+                          <h5 className="font-bold text-white uppercase tracking-widest text-sm">Pausable vs Restart</h5>
                         </div>
-                        <div className="flex gap-1">
-                          <div className={`w-1.5 h-1.5 rounded-full ${activeSounds['tutorial-demo-2'] ? 'bg-cyan-400 animate-pulse shadow-[0_0_5px_cyan]' : 'bg-slate-700'}`} />
+                        <p className="text-sm text-slate-400 leading-relaxed">
+                          For Togglable playback, clicking again stops the sound.
+                          Should it pause so you can resume (<span className="text-white font-bold">Pausable</span>), or should it skip to the beginning next time (<span className="text-white font-bold">Restart</span>)?
+                        </p>
+                        <div className="flex gap-2 p-1 bg-slate-900 rounded-lg">
+                          <button
+                            onClick={() => {
+                              setTutorialSound2(prev => ({ ...prev, mode: 'toggle' }));
+                              if (activeSounds[tutorialSound2.id]) playSound(tutorialSound2.id);
+                            }}
+                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${tutorialSound2.mode === 'toggle' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                          >
+                            Pausable
+                          </button>
+                          <button
+                            onClick={() => {
+                              setTutorialSound2(prev => ({ ...prev, mode: 'toggle-restart' }));
+                              if (activeSounds[tutorialSound2.id]) playSound(tutorialSound2.id);
+                            }}
+                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${tutorialSound2.mode === 'toggle-restart' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                          >
+                            Restart
+                          </button>
                         </div>
+                        <p className="text-xs text-slate-500 italic mt-4 pt-4 border-t border-slate-700/50">
+                          Because this is a Toggle, you can also use the global pause/play button in the header while it's running!
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">Resumes from where you left off. Perfect for long ambient loops or background tracks.</p>
-                      <div className="flex flex-wrap gap-2 pt-1 border-t border-cyan-500/10 mt-2 pt-3">
-                        <button
-                          onClick={() => {
-                            setTutorialSound2(prev => ({ ...prev, mode: 'toggle' }));
-                            playSound('tutorial-demo-2');
-                          }}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${activeSounds['tutorial-demo-2'] && tutorialSound2.mode === 'toggle' ? 'bg-cyan-500 text-slate-900 border-cyan-400' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30'}`}
-                        >
-                          <Pause className="w-3 h-3" /> {activeSounds['tutorial-demo-2'] && tutorialSound2.mode === 'toggle' ? 'Pause Ambient' : 'Start Ambient'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Restart vs Pausable */}
-                <section className="space-y-6">
-                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="h-px w-8 bg-slate-800"></div> Togglable Comparison
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <RotateCcw className="w-4 h-4 text-indigo-400" />
-                        <p className="text-xs font-bold text-slate-200 text-cyan-400 uppercase tracking-widest">Togglable : Restart</p>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">Always starts from the beginning (0:00). Ideal for stingers or repetitive music beds.</p>
-                      <button
-                        onClick={() => {
-                          setTutorialSound2(prev => ({ ...prev, mode: 'toggle-restart' }));
-                          if (!activeSounds['tutorial-demo-2']) playSound('tutorial-demo-2');
-                        }}
-                        className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeSounds['tutorial-demo-2'] && tutorialSound2.mode === 'toggle-restart' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20'}`}
-                      >
-                        Test Restart
-                      </button>
-                    </div>
-                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <Folder className="w-4 h-4 text-cyan-400" />
-                        <p className="text-xs font-bold text-slate-200 uppercase tracking-widest">Drag, Drop, & Delete</p>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">Drag an item over a folder until it <span className="text-cyan-400 font-bold">glows</span> to nest it! Drag it to the top Breadcrumbs to un-nest. Deleting a folder won't delete its sounds—they safely migrate upward.</p>
-                      <div className="flex gap-2 pt-2">
-                        <div className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-cyan-400 flex items-center justify-between">
-                          <span>Act 1/Props <span className="text-slate-600">→</span></span> <Trash2 className="w-3 h-3 text-red-500/50" />
+                      <div className="flex items-center justify-center p-4">
+                        <div className="w-full max-w-[200px] aspect-square">
+                          <TutorialSoundTile
+                            sound={tutorialSound2}
+                            isActive={activeSounds[tutorialSound2.id]}
+                            isGlobalPaused={isGlobalPaused}
+                            playSound={playSound}
+                            fadeInfo={activeFades[tutorialSound2.id]}
+                            onEdit={openEditModal}
+                          />
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Stack vs Cut */}
-                <section className="space-y-6">
-                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="h-px w-8 bg-slate-800"></div> Overlay vs Cut
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-indigo-400" />
-                        <p className="text-xs font-bold text-slate-200">Overlay (Stacking)</p>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">Sounds stack on each other. Spam the button to hear multiple beeps at once.</p>
-                      <button
-                        onClick={() => {
-                          setTutorialSound1(prev => ({ ...prev, overlap: true }));
-                          playSound('tutorial-demo-1');
-                        }}
-                        className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                      >
-                        Test Overlay
-                      </button>
-                    </div>
-                    <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-amber-400" />
-                        <p className="text-xs font-bold text-slate-200">Cut (Choke Group)</p>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">New sound stops the old one instantly. No overlap, keeps things clean and tight.</p>
-                      <button
-                        onClick={() => {
-                          setTutorialSound1(prev => ({ ...prev, overlap: false }));
-                          playSound('tutorial-demo-1');
-                        }}
-                        className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                      >
-                        Test Cut
-                      </button>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Edit Mode Demo Guide */}
-                <section className="space-y-6">
-                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="h-px w-8 bg-slate-800"></div> Edit Mode Guide
-                  </h4>
-                  <div className="bg-slate-800/20 border border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <Settings className="w-24 h-24" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-400">
-                          <Settings className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-200 text-sm">1. Toggle Edit</p>
-                          <p className="text-xs text-slate-500 mt-1">Click the Gear icon in the header to enter Edit Mode.</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-                          <Activity className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-200 text-sm">2. Hover Tile</p>
-                          <p className="text-xs text-slate-500 mt-1">While in Edit Mode, hover over any sound board tile.</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-                          <MoreVertical className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-200 text-sm">3. Customize</p>
-                          <p className="text-xs text-slate-500 mt-1">Click the vertical dots icon to adjust volume, fades, and modes.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Edit Playground */}
-                <section className="p-6 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-6 shadow-inner">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                          <Sparkles className="w-4 h-4" /> Live Experiment (SFX)
-                        </h4>
-                        <p className="text-[11px] text-slate-500">Try changing the volume or color of the SFX sound!</p>
-                      </div>
-                      <button
-                        onClick={() => openEditModal(tutorialSound1)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-indigo-500/20 hover:scale-105 transition-all active:scale-95"
-                      >
-                        <Settings className="w-3.5 h-3.5" /> Edit SFX
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                      <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound1.color].class} flex items-center justify-center shadow-lg`}>
-                        <Music className="w-6 h-6 text-white/50" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-white">{tutorialSound1.name}</p>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound1.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => playSound('tutorial-demo-1')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
-                          <Play className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 pt-6 border-t border-slate-700/50">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                          <Sparkles className="w-4 h-4" /> Live Experiment (Ambient)
-                        </h4>
-                        <p className="text-[11px] text-slate-500">Try changing the volume or color of the Ambient sound!</p>
-                      </div>
-                      <button
-                        onClick={() => openEditModal(tutorialSound2)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-lg text-[10px] font-bold shadow-lg hover:shadow-cyan-500/20 hover:scale-105 transition-all active:scale-95"
-                      >
-                        <Settings className="w-3.5 h-3.5" /> Edit Ambient
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                      <div className={`w-12 h-12 rounded-lg ${COLORS[tutorialSound2.color].class} flex items-center justify-center shadow-lg relative`}>
-                        <Music className="w-6 h-6 text-white/50" />
-                        {activeSounds['tutorial-demo-2'] && (
-                          <div className="absolute inset-0 bg-white/20 rounded-lg animate-pulse" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-white">{tutorialSound2.name}</p>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Current Mode: {tutorialSound2.mode === 'toggle' ? 'Toggle' : 'One-Shot'}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => playSound('tutorial-demo-2')} className="p-2 hover:bg-slate-700 rounded-lg text-cyan-400 transition-colors">
-                          <Power className={`w-4 h-4 ${activeSounds['tutorial-demo-2'] ? 'text-amber-400' : ''}`} />
-                        </button>
                       </div>
                     </div>
                   </div>
