@@ -126,7 +126,7 @@ const loadFromDB = async (key) => {
 function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: fullName,
-    disabled: !isEditMode || fullName === 'All'
+    disabled: !isEditMode
   });
 
   const style = {
@@ -142,17 +142,17 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
     <div ref={setNodeRef} style={style} {...attributes}>
       <button
         onClick={() => isFolder ? handleFolderClick(category) : setSelectedCategory(category)}
-        {...listeners}
+        {...(isEditMode && fullName !== 'All' ? listeners : {})}
         className={`
           px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border flex items-center gap-2
           ${isActive
             ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
             : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
           ${isEditMode && fullName !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none' : ''}
-          ${isOver && isFolder ? 'ring-4 ring-cyan-400 scale-105 bg-cyan-500/40 border-cyan-400 text-white z-50' : ''}
+          ${isOver && (isFolder || fullName === 'All') ? 'ring-4 ring-cyan-400 scale-105 bg-cyan-500/40 border-cyan-400 text-white z-50' : ''}
         `}
       >
-        {isFolder ? <Folder className="w-3.5 h-3.5 fill-current opacity-60" /> : (category === 'All' ? <Sparkles className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5 opacity-60" />)}
+        {isFolder ? <Folder className="w-3.5 h-3.5 fill-current opacity-60" /> : (fullName === 'All' ? <Sparkles className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5 opacity-60" />)}
         {category}
         {isFolder && <ChevronRight className="w-3 h-3 opacity-40 ml-1" />}
       </button>
@@ -1389,9 +1389,27 @@ export default function SoundboardApp() {
 
   const handleDragEndCategories = (event) => {
     const { active, over } = event;
-    if (over && active.id !== over.id && over.id !== 'All') {
-      const targetItem = categories.find(c => c.fullName === over.id);
+    if (over && active.id !== over.id) {
       const sourceItem = categories.find(c => c.fullName === active.id);
+
+      // MOVE TO HOME (Un-nest)
+      if (over.id === 'All' && sourceItem) {
+        const oldBase = sourceItem.fullName;
+        const newBase = sourceItem.name;
+
+        setSounds(prev => prev.map(s => {
+          const cat = s.category || 'General';
+          if (cat === oldBase || cat.startsWith(oldBase + '/')) {
+            return { ...s, category: cat.replace(oldBase, newBase) };
+          }
+          return s;
+        }));
+        setStatusMsg(`Moved ${sourceItem.name} to Home`);
+        setTimeout(() => setStatusMsg(''), 2000);
+        return;
+      }
+
+      const targetItem = categories.find(c => c.fullName === over.id);
 
       // NESTING LOGIC: Drag onto a folder to move inside it
       if (targetItem?.isFolder && sourceItem) {
@@ -1405,10 +1423,12 @@ export default function SoundboardApp() {
           }
           return s;
         }));
-        setStatusMsg(`Moved to ${targetItem.name}`);
+        setStatusMsg(`Moved ${sourceItem.name} into ${targetItem.name}`);
         setTimeout(() => setStatusMsg(''), 2000);
         return;
       }
+
+      if (over.id === 'All') return; // Cannot reorder relative to 'All'
 
       const oldItems = [...categories].filter(c => c.fullName !== 'All');
       const activeIndex = oldItems.findIndex(c => c.fullName === active.id);
@@ -1586,6 +1606,14 @@ export default function SoundboardApp() {
                     </button>
                   </React.Fragment>
                 ))}
+                {isEditMode && (
+                  <button
+                    onClick={() => setShowNewCatModal(true)}
+                    className="ml-auto flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-cyan-400 border border-slate-700 rounded-md transition-all shadow-sm group"
+                  >
+                    <FolderPlus className="w-3 h-3 group-hover:scale-110 transition-transform" /> New Folder
+                  </button>
+                )}
               </div>
             )}
 
@@ -1613,7 +1641,7 @@ export default function SoundboardApp() {
                   <button
                     onClick={() => setShowNewCatModal(true)}
                     className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
-                    title="Add Folder/Category"
+                    title="Add Folder or Category"
                   >
                     <FolderPlus className="w-4 h-4" />
                   </button>
@@ -2511,7 +2539,7 @@ export default function SoundboardApp() {
           <div className="bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-700 p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-cyan-400" /> Create Folder/Cat
+                <FolderPlus className="w-5 h-5 text-cyan-400" /> Create Folder or Category
               </h3>
               <button onClick={() => setShowNewCatModal(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
