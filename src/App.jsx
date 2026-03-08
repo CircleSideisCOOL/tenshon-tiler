@@ -1219,7 +1219,8 @@ export default function SoundboardApp() {
   const saveSound = () => {
     const soundToSave = {
       ...editingSound,
-      category: editingSound.category.trim() || 'General'
+      category: editingSound.category.trim() || 'General',
+      isPlaceholder: false // Any time we save, it's a real sound now
     };
 
     if (editingSound.id === 'tutorial-demo-1') {
@@ -1344,7 +1345,12 @@ export default function SoundboardApp() {
   });
 
   const filteredSounds = sounds.filter(s => {
-    if (s.id.startsWith('tutorial-demo')) return true; // Keep tutorial sounds 
+    if (s.id.startsWith('tutorial-demo')) return true; // Keep tutorial sounds
+    if (s.id === 'tutorial-demo') return false;
+    // Hide placeholders in Play Mode
+    if (!isEditMode && s.isPlaceholder) return false;
+    return true;
+  }).filter(s => {
     const cat = s.category || 'General';
     if (selectedCategory === 'All') return true;
 
@@ -1355,7 +1361,7 @@ export default function SoundboardApp() {
       // If we pick a folder, show all sounds starting with that folder
       return cat.startsWith(selectedCategory);
     }
-  }).filter(s => s.id !== 'tutorial-demo'); // Final cleanup
+  }); // Final cleanup
 
   const handleFolderClick = (folderName) => {
     const newPath = [...navigationPath, folderName];
@@ -1601,15 +1607,17 @@ export default function SoundboardApp() {
                   ))}
                 </SortableContext>
               </DndContext>
-              <div className="flex gap-1 items-center">
-                <button
-                  onClick={() => setShowNewCatModal(true)}
-                  className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
-                  title="Add Folder/Category"
-                >
-                  <FolderPlus className="w-4 h-4" />
-                </button>
-              </div>
+              {isEditMode && (
+                <div className="flex gap-1 items-center">
+                  <button
+                    onClick={() => setShowNewCatModal(true)}
+                    className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
+                    title="Add Folder/Category"
+                  >
+                    <FolderPlus className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2522,11 +2530,12 @@ export default function SoundboardApp() {
                     const finalCat = (navigationPath.length > 0 ? navigationPath.join('/') + '/' : '') + newCatName;
                     setSounds(prev => [...prev, {
                       id: 'new-cat-' + Date.now(),
-                      name: 'Empty Placeholder',
+                      name: 'Folder Placeholder',
                       category: finalCat,
                       src: 'demo_beep',
                       volume: 0.5,
-                      mode: 'restart'
+                      mode: 'restart',
+                      isPlaceholder: true
                     }]);
                     setNewCatName('');
                     setShowNewCatModal(false);
@@ -2543,11 +2552,12 @@ export default function SoundboardApp() {
                   const finalCat = (navigationPath.length > 0 ? navigationPath.join('/') + '/' : '') + newCatName;
                   setSounds(prev => [...prev, {
                     id: 'new-cat-' + Date.now(),
-                    name: 'Empty Placeholder',
+                    name: 'Folder Placeholder',
                     category: finalCat,
                     src: 'demo_beep',
                     volume: 0.5,
-                    mode: 'restart'
+                    mode: 'restart',
+                    isPlaceholder: true
                   }]);
                   setNewCatName('');
                   setShowNewCatModal(false);
