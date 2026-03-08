@@ -4,7 +4,7 @@ import {
   Keyboard, X, Repeat, MoreVertical, AlertCircle, Image as ImageIcon,
   Layers, Download, FolderOpen, Loader2, Activity, Zap, Power,
   Scissors, Github, Coffee, Heart, Pause, HelpCircle, BookOpen, ExternalLink, Sparkles, MessageSquare, RotateCcw,
-  Folder, ChevronRight, Home
+  Folder, ChevronRight, Home, FolderPlus, PlusCircle
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.1",
+  version: "1.2.2",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -123,10 +123,10 @@ const loadFromDB = async (key) => {
   }
 };
 
-function SortableCategory({ category, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
+function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: category,
-    disabled: !isEditMode || category === 'All'
+    id: fullName,
+    disabled: !isEditMode || fullName === 'All'
   });
 
   const style = {
@@ -404,6 +404,8 @@ export default function SoundboardApp() {
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
   const [activeFades, setActiveFades] = useState({});
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showNewCatModal, setShowNewCatModal] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
   const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
 
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
@@ -1381,11 +1383,33 @@ export default function SoundboardApp() {
   const handleDragEndCategories = (event) => {
     const { active, over } = event;
     if (over && active.id !== over.id && over.id !== 'All') {
-      const oldItems = [...categories].filter(c => c !== 'All');
-      const activeIndex = oldItems.indexOf(active.id);
-      const overIndex = oldItems.indexOf(over.id);
+      const targetItem = categories.find(c => c.fullName === over.id);
+      const sourceItem = categories.find(c => c.fullName === active.id);
+
+      // NESTING LOGIC: Drag onto a folder to move inside it
+      if (targetItem?.isFolder && sourceItem) {
+        const oldBase = sourceItem.fullName;
+        const newBase = targetItem.fullName + '/' + sourceItem.name;
+
+        setSounds(prev => prev.map(s => {
+          const cat = s.category || 'General';
+          if (cat === oldBase || cat.startsWith(oldBase + '/')) {
+            return { ...s, category: cat.replace(oldBase, newBase) };
+          }
+          return s;
+        }));
+        setStatusMsg(`Moved to ${targetItem.name}`);
+        setTimeout(() => setStatusMsg(''), 2000);
+        return;
+      }
+
+      const oldItems = [...categories].filter(c => c.fullName !== 'All');
+      const activeIndex = oldItems.findIndex(c => c.fullName === active.id);
+      const overIndex = oldItems.findIndex(c => c.fullName === over.id);
+
       if (activeIndex !== -1 && overIndex !== -1) {
-        setCustomCategoryOrder(arrayMove(oldItems, activeIndex, overIndex));
+        const newOrder = arrayMove(oldItems.map(c => c.fullName), activeIndex, overIndex);
+        setCustomCategoryOrder(newOrder);
       }
     }
   };
@@ -1565,11 +1589,10 @@ export default function SoundboardApp() {
                     <SortableCategory
                       key={cat.fullName}
                       category={cat.name}
+                      fullName={cat.fullName}
                       selectedCategory={selectedCategory === cat.fullName ? cat.name : (selectedCategory === cat.fullName + '/' ? cat.name : null)}
                       setSelectedCategory={() => {
                         setSelectedCategory(cat.fullName);
-                        // If it's a category (no trailing slash), keep same path
-                        // If it was a folder click, handleFolderClick would have been called
                       }}
                       handleFolderClick={() => handleFolderClick(cat.name)}
                       isFolder={cat.isFolder}
@@ -1578,13 +1601,15 @@ export default function SoundboardApp() {
                   ))}
                 </SortableContext>
               </DndContext>
-              <button
-                onClick={openNewSoundModal}
-                className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
-                title="Add to Category"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <div className="flex gap-1 items-center">
+                <button
+                  onClick={() => setShowNewCatModal(true)}
+                  className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
+                  title="Add Folder/Category"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1864,9 +1889,9 @@ export default function SoundboardApp() {
                     <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
                       <div className="flex items-center gap-2">
                         <Folder className="w-4 h-4 text-cyan-400" />
-                        <p className="text-xs font-bold text-slate-200 uppercase tracking-widest">Nesting / Folders</p>
+                        <p className="text-xs font-bold text-slate-200 uppercase tracking-widest">Hierarchy & Nesting</p>
                       </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">Use "/" in the Category field to create folders. Organize by Act/Scene/Object automatically!</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">Use "/" in Categories to nest. In Edit Mode, drag a category INTO a folder to group them instantly!</p>
                       <div className="flex gap-2 pt-2">
                         <div className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-cyan-400">
                           Act 1/Props/Sword
@@ -2142,7 +2167,7 @@ export default function SoundboardApp() {
                       className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
                     />
                     <datalist id="category-suggestions">
-                      {categories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
+                      {uniqueRelevantCategories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
                     </datalist>
                   </div>
                 </div>
@@ -2470,6 +2495,71 @@ export default function SoundboardApp() {
           </div>
         )
       }
+
+      {/* New Folder/Category Modal */}
+      {showNewCatModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-700 p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <FolderPlus className="w-5 h-5 text-cyan-400" /> Create Folder/Cat
+              </h3>
+              <button onClick={() => setShowNewCatModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Name (Use / for depth)</p>
+              <input
+                type="text"
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                placeholder="e.g. Act 2/Scene 1"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-2 ring-cyan-500 outline-none"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newCatName.trim()) {
+                    const finalCat = (navigationPath.length > 0 ? navigationPath.join('/') + '/' : '') + newCatName;
+                    setSounds(prev => [...prev, {
+                      id: 'new-cat-' + Date.now(),
+                      name: 'Empty Placeholder',
+                      category: finalCat,
+                      src: 'demo_beep',
+                      volume: 0.5,
+                      mode: 'restart'
+                    }]);
+                    setNewCatName('');
+                    setShowNewCatModal(false);
+                  }
+                }}
+              />
+              <p className="text-[10px] text-slate-500 italic">Adding a category creates an empty placeholder beep.</p>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setShowNewCatModal(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white font-medium">Cancel</button>
+              <button
+                onClick={() => {
+                  if (!newCatName.trim()) return;
+                  const finalCat = (navigationPath.length > 0 ? navigationPath.join('/') + '/' : '') + newCatName;
+                  setSounds(prev => [...prev, {
+                    id: 'new-cat-' + Date.now(),
+                    name: 'Empty Placeholder',
+                    category: finalCat,
+                    src: 'demo_beep',
+                    volume: 0.5,
+                    mode: 'restart'
+                  }]);
+                  setNewCatName('');
+                  setShowNewCatModal(false);
+                }}
+                className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-cyan-900/40"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
