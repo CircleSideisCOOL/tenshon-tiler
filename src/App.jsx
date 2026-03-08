@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.7",
+  version: "1.3.8",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -141,7 +141,7 @@ function BreadcrumbDropTarget({ id, children, onClick, isActive, isNestingTarget
   );
 }
 
-function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInfo, onEdit }) {
+function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInfo, onEdit, isEditMode }) {
   const [localRemaining, setLocalRemaining] = useState(0);
 
   useEffect(() => {
@@ -179,27 +179,32 @@ function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInf
         role="button"
         tabIndex={0}
         onPointerDown={(e) => {
-          if (e.pointerType === 'mouse' && e.button !== 0) return;
-          playSound(sound.id);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+          if (!isEditMode) {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
             playSound(sound.id);
           }
         }}
-        onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (!isEditMode) playSound(sound.id);
+          }
+        }}
+        onContextMenu={(e) => {
+          if (!isEditMode) e.preventDefault();
+        }}
         style={bgStyle}
         className={`
           w-full h-full rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
           transition-none duration-100 ease-out border-b-4 shadow-lg select-none
-          touch-manipulation cursor-pointer
+          ${!isEditMode ? 'touch-manipulation cursor-pointer' : 'touch-auto'}
           ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
-          active:border-b-0 active:translate-y-1
-          ${isActive
+          ${!isEditMode && 'active:border-b-0 active:translate-y-1'}
+          ${isActive && !isEditMode
             ? (sound.image
               ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]'
               : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`)
             : ''}
+          ${isEditMode ? 'hover:ring-4 ring-cyan-500 cursor-pointer' : ''}
         `}
       >
         {sound.image && (
@@ -273,14 +278,16 @@ function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInf
         )}
       </div>
 
-      <button
-        onClick={(e) => { e.stopPropagation(); onEdit(sound); }}
-        className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30 pointer-events-auto"
-      >
-        <div className="bg-slate-800 p-3 rounded-full border border-slate-600 hover:scale-110 transition-transform shadow-xl pointer-events-auto cursor-pointer">
-          <Settings className="w-8 h-8 text-cyan-400" />
-        </div>
-      </button>
+      {isEditMode && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(sound); }}
+          className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30 pointer-events-auto cursor-pointer"
+        >
+          <div className="bg-slate-800 p-3 rounded-full border border-slate-600 hover:scale-110 transition-transform shadow-xl">
+            <Settings className="w-8 h-8 text-cyan-400" />
+          </div>
+        </button>
+      )}
     </div>
   );
 }
@@ -554,7 +561,7 @@ export default function SoundboardApp() {
     color: 1, // Cyan
     keybind: '',
     volume: 0.5,
-    loop: true,
+    loop: false,
     mode: 'toggle',
     overlap: true,
     fadeIn: 1.5,
@@ -580,6 +587,7 @@ export default function SoundboardApp() {
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
   const [activeFades, setActiveFades] = useState({});
   const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialEditMode, setTutorialEditMode] = useState(false);
   const [showNewCatModal, setShowNewCatModal] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
@@ -2163,9 +2171,21 @@ export default function SoundboardApp() {
 
                 {/* Live Experiments */}
                 <section className="space-y-6">
-                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="h-px w-8 bg-slate-800"></div> Live Experiments
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <div className="h-px w-8 bg-slate-800"></div> Live Experiments
+                    </h4>
+                    <button
+                      onClick={() => setTutorialEditMode(!tutorialEditMode)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${tutorialEditMode
+                          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'
+                        }`}
+                    >
+                      <Settings className={`w-3.5 h-3.5 ${tutorialEditMode ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
+                      {tutorialEditMode ? 'Disable Edit Mode' : 'Test Edit Mode'}
+                    </button>
+                  </div>
                   <div className="space-y-8">
                     {/* Experiment 1 */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50">
@@ -2205,6 +2225,7 @@ export default function SoundboardApp() {
                             playSound={playSound}
                             fadeInfo={activeFades[tutorialSound1.id]}
                             onEdit={openEditModal}
+                            isEditMode={tutorialEditMode}
                           />
                         </div>
                       </div>
@@ -2254,6 +2275,7 @@ export default function SoundboardApp() {
                             playSound={playSound}
                             fadeInfo={activeFades[tutorialSound2.id]}
                             onEdit={openEditModal}
+                            isEditMode={tutorialEditMode}
                           />
                         </div>
                       </div>
