@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.5",
+  version: "1.2.6",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1429,10 +1429,10 @@ export default function SoundboardApp() {
       if (targetItem?.isFolder) {
         const overRect = event.over.rect;
         const activeRect = event.active.rect.current.translated;
-        // ONLY NEST IF CENTERED (20% to 80%)
+        // ONLY NEST IF CENTERED (25% to 75%)
         const dropInCenter = overRect && activeRect && (
-          activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.20 &&
-          activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.80
+          activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.25 &&
+          activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.75
         );
         if (dropInCenter) {
           setNestingTargetId(over.id);
@@ -1454,8 +1454,8 @@ export default function SoundboardApp() {
       const activeRect = event.active.rect.current.translated;
 
       const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.20 &&
-        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.80
+        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.25 &&
+        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.75
       );
 
       // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
@@ -1665,35 +1665,35 @@ export default function SoundboardApp() {
           </div>
 
           {/* Navigation Breadcrumbs & Items */}
-          <div className="flex flex-col gap-3">
-            {(navigationPath.length > 0 || isEditMode) && (
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
-                <BreadcrumbDropTarget id="nav-breadcrumb--1" onClick={resetNav}>
-                  <Home className="w-3 h-3" /> Home
-                </BreadcrumbDropTarget>
-                {navigationPath.map((segment, idx) => (
-                  <React.Fragment key={idx}>
-                    <ChevronRight className="w-3 h-3 opacity-30" />
-                    <BreadcrumbDropTarget
-                      id={`nav-breadcrumb-${idx}`}
-                      onClick={() => traverseToPath(idx)}
-                      isActive={idx === navigationPath.length - 1}
-                    >
-                      {segment}
-                    </BreadcrumbDropTarget>
-                  </React.Fragment>
-                ))}
-              </div>
-            )}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragOver={handleDragOverCategories}
+            onDragEnd={handleDragEndCategories}
+          >
+            <div className="flex flex-col gap-3">
+              {(navigationPath.length > 0 || isEditMode) && (
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
+                  <BreadcrumbDropTarget id="nav-breadcrumb--1" onClick={resetNav}>
+                    <Home className="w-3 h-3" /> Home
+                  </BreadcrumbDropTarget>
+                  {navigationPath.map((segment, idx) => (
+                    <React.Fragment key={idx}>
+                      <ChevronRight className="w-3 h-3 opacity-30" />
+                      <BreadcrumbDropTarget
+                        id={`nav-breadcrumb-${idx}`}
+                        onClick={() => traverseToPath(idx)}
+                        isActive={idx === navigationPath.length - 1}
+                      >
+                        {segment}
+                      </BreadcrumbDropTarget>
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
 
-            <div className={`flex gap-2 items-center ${isEditMode ? 'pr-2' : ''}`}>
-              <div className="flex-1 flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragOver={handleDragOverCategories}
-                  onDragEnd={handleDragEndCategories}
-                >
+              <div className={`flex gap-2 items-center ${isEditMode ? 'pr-2' : ''}`}>
+                <div className="flex-1 flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
                   <SortableContext items={categories.map(c => c.fullName)} strategy={horizontalListSortingStrategy}>
                     {categories.map(cat => (
                       <SortableCategory
@@ -1711,19 +1711,19 @@ export default function SoundboardApp() {
                       />
                     ))}
                   </SortableContext>
-                </DndContext>
+                </div>
+                {isEditMode && (
+                  <button
+                    onClick={() => setShowNewCatModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] text-cyan-400 border border-slate-700 rounded-lg transition-all shadow-sm group font-bold shrink-0 mb-2 whitespace-nowrap"
+                    title="Create Folder or Category"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" /> New
+                  </button>
+                )}
               </div>
-              {isEditMode && (
-                <button
-                  onClick={() => setShowNewCatModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] text-cyan-400 border border-slate-700 rounded-lg transition-all shadow-sm group font-bold shrink-0 mb-2 whitespace-nowrap"
-                  title="Create Folder or Category"
-                >
-                  <PlusCircle className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" /> New
-                </button>
-              )}
             </div>
-          </div>
+          </DndContext>
 
         </div>
       </header>
