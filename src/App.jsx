@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.3",
+  version: "1.2.4",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -141,7 +141,7 @@ function BreadcrumbDropTarget({ id, children, onClick, isActive }) {
   );
 }
 
-function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick }) {
+function SortableCategory({ category, fullName, selectedCategory, setSelectedCategory, isEditMode, isFolder, handleFolderClick, isNestingTarget }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: fullName,
     disabled: !isEditMode
@@ -162,12 +162,12 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
         onClick={() => isFolder ? handleFolderClick(category) : setSelectedCategory(category)}
         {...(isEditMode && fullName !== 'All' ? listeners : {})}
         className={`
-          px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border flex items-center gap-2
+          px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all border flex items-center gap-2 select-none
           ${isActive
             ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
             : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-200'}
-          ${isEditMode && fullName !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none' : ''}
-          ${isOver && (isFolder || fullName === 'All') ? 'ring-4 ring-cyan-400 scale-105 bg-cyan-500/40 border-cyan-400 text-white z-50' : ''}
+          ${isEditMode && fullName !== 'All' ? 'cursor-grab active:cursor-grabbing hover:ring-2 ring-cyan-500/50 touch-none shrink-0' : ''}
+          ${isNestingTarget ? 'ring-4 ring-cyan-400 bg-cyan-500/40 border-cyan-400 text-white z-50' : ''}
         `}
       >
         {isFolder ? <Folder className="w-3.5 h-3.5 fill-current opacity-60" /> : (fullName === 'All' ? <Sparkles className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5 opacity-60" />)}
@@ -426,6 +426,7 @@ export default function SoundboardApp() {
   const [showNewCatModal, setShowNewCatModal] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
+  const [nestingTargetId, setNestingTargetId] = useState(null);
 
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -1416,8 +1417,34 @@ export default function SoundboardApp() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const handleDragOverCategories = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      if (over.id === 'All' || over.id.startsWith('nav-breadcrumb-')) {
+        setNestingTargetId(over.id);
+        return;
+      }
+
+      const targetItem = categories.find(c => c.fullName === over.id);
+      if (targetItem?.isFolder) {
+        const overRect = event.over.rect;
+        const activeRect = event.active.rect.current.translated;
+        const dropInCenter = overRect && activeRect && (
+          activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.15 &&
+          activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.85
+        );
+        if (dropInCenter) {
+          setNestingTargetId(over.id);
+          return;
+        }
+      }
+    }
+    setNestingTargetId(null);
+  };
+
   const handleDragEndCategories = (event) => {
     const { active, over } = event;
+    setNestingTargetId(null);
     if (over && active.id !== over.id) {
       const sourceItem = categories.find(c => c.fullName === active.id);
 
@@ -1426,8 +1453,8 @@ export default function SoundboardApp() {
       const activeRect = event.active.rect.current.translated;
 
       const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.25 &&
-        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.75
+        activeRect.left + activeRect.width / 2 > overRect.left + overRect.width * 0.15 &&
+        activeRect.left + activeRect.width / 2 < overRect.left + overRect.width * 0.85
       );
 
       // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
@@ -1655,46 +1682,44 @@ export default function SoundboardApp() {
                     </BreadcrumbDropTarget>
                   </React.Fragment>
                 ))}
-                {isEditMode && (
-                  <button
-                    onClick={() => setShowNewCatModal(true)}
-                    className="ml-auto flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-cyan-400 border border-slate-700 rounded-md transition-all shadow-sm group"
-                  >
-                    <FolderPlus className="w-3 h-3 group-hover:scale-110 transition-transform" /> New Folder
-                  </button>
-                )}
               </div>
             )}
 
-            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCategories}>
-                <SortableContext items={categories.map(c => c.fullName)} strategy={horizontalListSortingStrategy}>
-                  {categories.map(cat => (
-                    <SortableCategory
-                      key={cat.fullName}
-                      category={cat.name}
-                      fullName={cat.fullName}
-                      selectedCategory={selectedCategory === cat.fullName ? cat.name : (selectedCategory === cat.fullName + '/' ? cat.name : null)}
-                      setSelectedCategory={() => {
-                        setSelectedCategory(cat.fullName);
-                      }}
-                      handleFolderClick={() => handleFolderClick(cat.name)}
-                      isFolder={cat.isFolder}
-                      isEditMode={isEditMode}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
+            <div className={`flex gap-2 items-center ${isEditMode ? 'pr-2' : ''}`}>
+              <div className="flex-1 flex gap-2 overflow-x-auto pb-2 custom-scrollbar mask-gradient-right">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragOver={handleDragOverCategories}
+                  onDragEnd={handleDragEndCategories}
+                >
+                  <SortableContext items={categories.map(c => c.fullName)} strategy={horizontalListSortingStrategy}>
+                    {categories.map(cat => (
+                      <SortableCategory
+                        key={cat.fullName}
+                        category={cat.name}
+                        fullName={cat.fullName}
+                        selectedCategory={selectedCategory === cat.fullName ? cat.name : (selectedCategory === cat.fullName + '/' ? cat.name : null)}
+                        setSelectedCategory={() => {
+                          setSelectedCategory(cat.fullName);
+                        }}
+                        handleFolderClick={() => handleFolderClick(cat.name)}
+                        isFolder={cat.isFolder}
+                        isEditMode={isEditMode}
+                        isNestingTarget={nestingTargetId === cat.fullName}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              </div>
               {isEditMode && (
-                <div className="flex gap-1 items-center">
-                  <button
-                    onClick={() => setShowNewCatModal(true)}
-                    className="flex items-center justify-center p-2 min-w-[36px] bg-slate-800/50 hover:bg-cyan-500/20 text-slate-500 hover:text-cyan-400 border border-dashed border-slate-700 hover:border-cyan-500/50 rounded-full transition-all shrink-0"
-                    title="Add Folder or Category"
-                  >
-                    <FolderPlus className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowNewCatModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] text-cyan-400 border border-slate-700 rounded-lg transition-all shadow-sm group font-bold shrink-0 mb-2 whitespace-nowrap"
+                  title="Create Folder or Category"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" /> New
+                </button>
               )}
             </div>
           </div>
