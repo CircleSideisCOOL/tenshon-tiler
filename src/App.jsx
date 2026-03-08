@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.2.9",
+  version: "1.3.0",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -148,7 +148,7 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
   });
 
   const style = {
-    transform: CSS.Transform.toString(isNestingTarget ? null : transform),
+    transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : (isNestingTarget ? 5 : 1),
@@ -159,6 +159,7 @@ function SortableCategory({ category, fullName, selectedCategory, setSelectedCat
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <button
+        id={`category-${fullName}`}
         onClick={() => isFolder ? handleFolderClick(category) : setSelectedCategory(category)}
         {...(isEditMode && fullName !== 'All' ? listeners : {})}
         className={`
@@ -1430,12 +1431,13 @@ export default function SoundboardApp() {
 
       const targetItem = categories.find(c => c.fullName === over.id);
       if (targetItem?.isFolder) {
-        const overRect = event.over.rect;
+        const overElement = document.getElementById(`category-${over.id}`);
+        const overRect = overElement ? overElement.getBoundingClientRect() : event.over.rect;
         const activeRect = event.active.rect.current.translated;
-        // ONLY NEST IF CENTERED (25% to 75%)
+        // ONLY NEST IF CENTERED (15% to 85%) - True Visual Coordinates
         const dropInCenter = overRect && activeRect && (
-          activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.25) &&
-          activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.75)
+          activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
+          activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
         );
         if (dropInCenter) {
           setNestingTargetId(over.id);
@@ -1453,12 +1455,13 @@ export default function SoundboardApp() {
       const sourceItem = categories.find(c => c.fullName === active.id);
 
       // Calculate drop position relative to target center for NESTING check
-      const overRect = event.over.rect;
+      const overElement = document.getElementById(`category-${over.id}`);
+      const overRect = overElement ? overElement.getBoundingClientRect() : event.over.rect;
       const activeRect = event.active.rect.current.translated;
 
       const dropInCenter = overRect && activeRect && (
-        activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.25) &&
-        activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.75)
+        activeRect.left + activeRect.width / 2 > overRect.left + (overRect.width * 0.15) &&
+        activeRect.left + activeRect.width / 2 < overRect.left + (overRect.width * 0.85)
       );
 
       // MOVE TO HOME/PARENT (Un-nest via Breadcrumbs or 'All')
