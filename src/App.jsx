@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.5",
+  version: "1.3.6",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -2003,8 +2003,8 @@ export default function SoundboardApp() {
                     <div className="flex gap-4">
                       <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">2</div>
                       <div className="space-y-1">
-                        <p className="font-bold text-slate-200">Edit Mode</p>
-                        <p className="text-sm text-slate-400">Toggle <span className="text-cyan-400">Gear Icon ⚙️</span> to enter Edit Mode. Hover over tiles to adjust volume, fades, or playback modes.</p>
+                        <p className="font-bold text-slate-200">Edit Mode & Folders</p>
+                        <p className="text-sm text-slate-400">Toggle the <span className="text-cyan-400">Gear Icon ⚙️</span> to enter Edit Mode. Hover over tiles to customize them, or drag folders to re-order and nest them.</p>
                       </div>
                     </div>
                     <div className="flex gap-4">
@@ -2089,12 +2089,12 @@ export default function SoundboardApp() {
                     <div className="p-5 bg-slate-800/40 border border-slate-700/50 rounded-2xl space-y-3 group hover:border-slate-500 transition-colors">
                       <div className="flex items-center gap-2">
                         <Folder className="w-4 h-4 text-cyan-400" />
-                        <p className="text-xs font-bold text-slate-200 uppercase tracking-widest">Hierarchy & Nesting</p>
+                        <p className="text-xs font-bold text-slate-200 uppercase tracking-widest">Drag, Drop, & Delete</p>
                       </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">Use "/" in Categories to nest. In Edit Mode, drag a category INTO a folder to group them instantly!</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">Drag an item over a folder until it <span className="text-cyan-400 font-bold">glows</span> to nest it! Drag it to the top Breadcrumbs to un-nest. Deleting a folder won't delete its sounds—they safely migrate upward.</p>
                       <div className="flex gap-2 pt-2">
-                        <div className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-cyan-400">
-                          Act 1/Props/Sword
+                        <div className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-cyan-400 flex items-center justify-between">
+                          <span>Act 1/Props <span className="text-slate-600">→</span></span> <Trash2 className="w-3 h-3 text-red-500/50" />
                         </div>
                       </div>
                     </div>
