@@ -2592,29 +2592,35 @@ export default function SoundboardApp() {
                             <span className="text-xs font-mono font-medium text-cyan-400">%</span>
                           </div>
                         </div>
-                        <div className="relative pt-3 h-8 flex items-center">
-                          <input
-                            type="range" min="0" max="3" step="0.01"
-                            value={editingSound.volume}
-                            onChange={e => {
-                              let val = parseFloat(e.target.value);
-                              // Snap to 100% if close
-                              if (Math.abs(val - 1) < 0.05) val = 1;
-                              setEditingSound({ ...editingSound, volume: val });
-                            }}
-                            className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 relative z-10"
-                          />
-                          {/* 100% Marker */}
-                          <div
-                            className="absolute left-[33.33%] top-0 bottom-0 w-0.5 bg-slate-500/50 pointer-events-none flex flex-col items-center"
-                            title="100% Volume"
-                          >
-                            <div className="w-1 h-1 rounded-full bg-cyan-400 absolute -bottom-1"></div>
-                            <span className="text-[10px] text-slate-500 mt-2">100%</span>
+                        <div className="relative mt-2 px-1">
+                          <div className="relative h-6 flex items-center">
+                            <input
+                              type="range" min="0" max="2" step="0.01"
+                              value={editingSound.volume}
+                              onChange={e => {
+                                let val = parseFloat(e.target.value);
+                                // Snap to 100% if close
+                                if (Math.abs(val - 1) < 0.04) val = 1;
+                                setEditingSound({ ...editingSound, volume: val });
+                              }}
+                              className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 relative z-10"
+                            />
+
+                            {/* 100% Marker (Centered at 50% since max is 2) */}
+                            <div
+                              className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-slate-500/40 pointer-events-none flex flex-col items-center"
+                              style={{ height: '24px', transform: 'translateY(-4px)' }}
+                            >
+                              <span className="text-[9px] text-slate-500 mb-6 font-medium">100%</span>
+                              <div className="w-1 h-1 rounded-full bg-slate-500/60 absolute bottom-0"></div>
+                            </div>
                           </div>
-                          {/* Labels for scale */}
-                          <div className="absolute left-0 bottom-[-1.2rem] text-[8px] text-slate-600">0%</div>
-                          <div className="absolute right-0 bottom-[-1.2rem] text-[8px] text-slate-600">300%</div>
+
+                          {/* Min/Max Labels */}
+                          <div className="flex justify-between items-center -mt-1 px-0.5">
+                            <span className="text-[9px] font-medium text-slate-600">0%</span>
+                            <span className="text-[9px] font-medium text-slate-600">200%</span>
+                          </div>
                         </div>
                       </div>
                     </div>
