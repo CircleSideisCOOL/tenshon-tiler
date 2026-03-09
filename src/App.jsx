@@ -1274,6 +1274,12 @@ export default function SoundboardApp() {
         const pauseDuration = sound.pauseFade !== undefined ? sound.pauseFade : 0.1;
         const fadeTime = pauseDuration * 1000;
 
+        // Cancel any existing fade (e.g., end-of-track fade-out)
+        if (audio._fadeInterval) {
+          clearInterval(audio._fadeInterval);
+          audio._fadeInterval = null;
+        }
+
         if (fadeTime > 0) {
           const startVol = audio.volume;
           const steps = 20;
@@ -1284,13 +1290,13 @@ export default function SoundboardApp() {
           const fadeInterval = setInterval(() => {
             elapsed += stepTime;
             const p = Math.min(1, elapsed / fadeTime);
-            // Reverse curve progress since we are going from startVol -> 0
             const curveP = getCurveProgress(p, curve);
             const currentVol = startVol + (0 - startVol) * curveP;
 
             if (p >= 1 || currentVol <= 0.001) {
               audio.volume = 0;
               audio.pause();
+              audio._pausedByUser = true; // Explicit flag for resume detection
               clearInterval(fadeInterval);
               audio._fadeInterval = null;
               updateVisualState(id, 'reset');
@@ -1302,6 +1308,7 @@ export default function SoundboardApp() {
           startFadeTimer(id, 'PAUSING', pauseDuration);
         } else {
           audio.pause();
+          audio._pausedByUser = true; // Explicit flag for resume detection
           updateVisualState(id, 'reset');
         }
         return;
@@ -1315,6 +1322,8 @@ export default function SoundboardApp() {
         audio = new Audio(sound.src);
         activeElementsRef.current[id] = audio;
         audio.onended = () => {
+          audio._pausedByUser = false; // Audio ended naturally, not a user pause
+          audio._fadeOutTriggered = false;
           audio.currentTime = 0;
           updateVisualState(id, 'reset');
         };
@@ -1373,14 +1382,18 @@ export default function SoundboardApp() {
 
       audio.loop = sound.loop;
 
-      // Determine if starting from 0 or resuming
-      let isResuming = audio.currentTime > 0 && !audio.ended;
+      // Use explicit _pausedByUser flag for reliable resume detection
+      let isResuming = !!(audio._pausedByUser && audio.currentTime > 0);
 
       // FORCED RESTART LOGIC
       if (sound.mode === 'toggle-restart') {
         isResuming = false;
         audio.currentTime = 0;
       }
+
+      // Clear the flag now that we're handling the resume
+      audio._pausedByUser = false;
+      audio._fadeOutTriggered = false;
 
       // Use resumeFade if resuming, otherwise fadeIn
       const fadeDuration = isResuming
