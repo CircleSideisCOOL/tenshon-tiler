@@ -87,6 +87,16 @@ const blobToDataURL = async (blobUrl) => {
 };
 
 // --- IndexedDB Helper for Persistence ---
+const getCurveProgress = (progress, curve) => {
+  let p = Math.max(0, Math.min(1, progress));
+  switch (curve) {
+    case 'exponential': return Math.pow(p, 2);
+    case 'logarithmic': return Math.log10(1 + 9 * p);
+    case 's-curve': return (Math.sin((p - 0.5) * Math.PI) + 1) / 2;
+    default: return p; // linear
+  }
+};
+
 const initDB = () => {
   return new Promise((resolve, reject) => {
     const req = window.indexedDB.open('TenshonDB', 1);
@@ -536,6 +546,156 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
   );
 }
 
+// --- 🎨 WAVEFORM VISUALIZER COMPONENT ---
+const WaveformVisualizer = ({ sound, curveProgress }) => {
+  const [peaks, setPeaks] = useState([]);
+  const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!sound.src || sound.src === 'demo_beep') {
+      setPeaks([]);
+      setDuration(0);
+      return;
+    }
+
+    const loadWaveform = async () => {
+      setIsLoading(true);
+      try {
+        const ctx = getAudioContext();
+        const response = await fetch(sound.src);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+        setDuration(audioBuffer.duration);
+
+        // Generate 100 peaks
+        const channelData = audioBuffer.getChannelData(0);
+        const step = Math.floor(channelData.length / 100);
+        const newPeaks = [];
+        for (let i = 0; i < 100; i++) {
+          let max = 0;
+          for (let j = 0; j < step; j++) {
+            const val = Math.abs(channelData[Math.min(channelData.length - 1, i * step + j)]);
+            if (val > max) max = val;
+          }
+          newPeaks.push(max);
+        }
+        setPeaks(newPeaks);
+      } catch (err) {
+        console.error("Waveform Visualizer Error:", err);
+      }
+      setIsLoading(false);
+    };
+
+    loadWaveform();
+  }, [sound.src]);
+
+  const fadeInWidth = duration > 0 ? (sound.fadeIn / duration) * 100 : 0;
+  const fadeOutWidth = duration > 0 ? (sound.fadeOut / duration) * 100 : 0;
+  const curve = sound.fadeCurve || 'linear';
+
+  // Calculate points for the fade lines based on curve
+  const getFadePath = (type) => {
+    let d = "";
+    const steps = 30;
+    if (type === 'in') {
+      d = "M 0,100";
+      for (let i = 0; i <= steps; i++) {
+        const p = i / steps;
+        const x = p * fadeInWidth;
+        const y = 100 - (curveProgress(p, curve) * 100);
+        d += ` L ${x},${y}`;
+      }
+    } else {
+      const startX = Math.max(0, 100 - fadeOutWidth);
+      d = `M ${startX},0`;
+      for (let i = 0; i <= steps; i++) {
+        const p = i / steps;
+        const x = startX + (p * fadeOutWidth);
+        const y = curveProgress(p, curve) * 100;
+        d += ` L ${x},${y}`;
+      }
+    }
+    return d;
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="h-28 w-full bg-slate-900/90 rounded-lg border border-slate-700/80 relative overflow-hidden group shadow-inner">
+        {isLoading && (
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] z-30 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-cyan-500 animate-spin" />
+          </div>
+        )}
+
+        {/* Sub-layers for grid/time */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(90deg, #94a3b8 1px, transparent 1px)', backgroundSize: '10% 100%' }} />
+          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-slate-400" />
+        </div>
+
+        {/* Waveform Canvas-style SVG */}
+        <div className="absolute inset-0 flex items-center justify-center gap-[1px] px-1 opacity-25">
+          {peaks.map((peak, idx) => (
+            <div
+              key={idx}
+              className="w-[2px] sm:w-[3px] bg-indigo-400 rounded-full"
+              style={{ height: `${Math.max(2, peak * 90)}%` }}
+            />
+          ))}
+        </div>
+
+        {/* Fade Curves Overlay */}
+        <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="waveformFade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(34, 211, 238, 0.2)" />
+              <stop offset="100%" stopColor="rgba(34, 211, 238, 0.05)" />
+            </linearGradient>
+          </defs>
+
+          {/* Shading area */}
+          <path
+            d={`M 0,100 ${getFadePath('in')} L ${Math.max(0, 100 - fadeOutWidth)},0 ${getFadePath('out')} L 100,100 Z`}
+            fill="url(#waveformFade)"
+          />
+
+          {/* Red Ramp Lines (Like your drawing!) */}
+          <path d={getFadePath('in')} fill="none" stroke="#ef4444" strokeWidth="2.5" className="drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+          <path d={getFadePath('out')} fill="none" stroke="#ef4444" strokeWidth="2.5" className="drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+
+          {/* Sustain Connection */}
+          {fadeInWidth + fadeOutWidth < 100 && (
+            <line x1={fadeInWidth} y1="0" x2={100 - fadeOutWidth} y2="0" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
+          )}
+        </svg>
+
+        {/* Labels Layer */}
+        <div className="absolute inset-0 z-20 pointer-events-none p-2">
+          {sound.fadeIn > 0 && (
+            <div className="absolute top-2 left-2 animate-in slide-in-from-left-2 duration-300">
+              <span className="text-xl font-black text-white italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-90">{sound.fadeIn.toFixed(1)}</span>
+              <span className="text-[8px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade In Seconds</span>
+            </div>
+          )}
+          {sound.fadeOut > 0 && (
+            <div className="absolute top-2 right-2 text-right animate-in slide-in-from-right-2 duration-300">
+              <span className="text-xl font-black text-white italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-90">{sound.fadeOut.toFixed(1)}</span>
+              <span className="text-[8px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade Out Seconds</span>
+            </div>
+          )}
+
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 text-[9px] font-mono text-slate-400">
+            {duration.toFixed(2)}s Total Clip Duration
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] text-slate-500 text-center italic">Waveform visualization of "{sound.name}"</p>
+    </div>
+  );
+};
+
 export default function SoundboardApp() {
   const [sounds, setSounds] = useState([
     {
@@ -872,16 +1032,7 @@ export default function SoundboardApp() {
     }, duration * 1000 + 100);
   }, []);
 
-  const getCurveProgress = (progress, curve) => {
-    let p = Math.max(0, Math.min(1, progress));
-    switch (curve) {
-      case 'exponential': return Math.pow(p, 2);
-      case 'logarithmic': return Math.log10(1 + 9 * p);
-      case 's-curve': return (Math.sin((p - 0.5) * Math.PI) + 1) / 2;
-      case 'linear':
-      default: return p;
-    }
-  };
+
 
   const applyWebAudioFade = (gainNodeParam, startVol, targetVol, startTime, duration, curve) => {
     gainNodeParam.cancelScheduledValues(startTime);
@@ -2705,44 +2856,9 @@ export default function SoundboardApp() {
                           </select>
                         </div>
 
-                        {/* FADE CURVE VISUALIZATION */}
+                        {/* FADE CURVE VISUALIZATION - Now with Waveform! */}
                         <div className="pt-2">
-                          <div className="h-20 w-full bg-slate-900/80 rounded border border-slate-700/50 relative overflow-hidden flex flex-col items-center justify-center p-2">
-                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                              <defs>
-                                <linearGradient id="fadeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                  <stop offset="0%" stopColor="rgba(34, 211, 238, 0)" />
-                                  <stop offset="100%" stopColor="rgba(34, 211, 238, 0.4)" />
-                                </linearGradient>
-                              </defs>
-                              <path
-                                d={(() => {
-                                  const curve = editingSound.fadeCurve || 'linear';
-                                  let points = "M 0,100";
-                                  const steps = 40;
-                                  for (let i = 0; i <= steps; i++) {
-                                    const x = (i / steps) * 100;
-                                    const p = i / steps;
-                                    const y = 100 - (getCurveProgress(p, curve) * 100);
-                                    points += ` L ${x},${y}`;
-                                  }
-                                  points += " L 100,100 Z";
-                                  return points;
-                                })()}
-                                fill="url(#fadeGradient)"
-                                stroke="#22d3ee"
-                                strokeWidth="2"
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="flex flex-col items-center gap-1 opacity-40">
-                                <Activity className="w-4 h-4 text-cyan-400" />
-                                <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">
-                                  {editingSound.fadeCurve || 'linear'} Ramp
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+                          <WaveformVisualizer sound={editingSound} curveProgress={getCurveProgress} />
                         </div>
 
                         {/* Pause/Resume Fades (Only for Toggle Mode) */}
