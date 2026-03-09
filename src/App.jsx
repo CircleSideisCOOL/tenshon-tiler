@@ -2606,13 +2606,12 @@ export default function SoundboardApp() {
                               className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 relative z-10"
                             />
 
-                            {/* 100% Marker (Centered at 50% since max is 2) */}
                             <div
                               className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-slate-500/40 pointer-events-none flex flex-col items-center"
                               style={{ height: '24px', transform: 'translateY(-4px)' }}
                             >
-                              <span className="text-[9px] text-slate-500 mb-6 font-medium">100%</span>
-                              <div className="w-1 h-1 rounded-full bg-slate-500/60 absolute bottom-0"></div>
+                              <div className="w-1 h-1 rounded-full bg-slate-500/60 absolute top-0"></div>
+                              <span className="text-[9px] text-slate-500 mt-6 font-medium">100%</span>
                             </div>
                           </div>
 
@@ -2708,7 +2707,7 @@ export default function SoundboardApp() {
 
                         {/* FADE CURVE VISUALIZATION */}
                         <div className="pt-2">
-                          <div className="h-16 w-full bg-slate-900/80 rounded border border-slate-700/50 relative overflow-hidden flex items-center justify-center">
+                          <div className="h-20 w-full bg-slate-900/80 rounded border border-slate-700/50 relative overflow-hidden flex flex-col items-center justify-center p-2">
                             <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                               <defs>
                                 <linearGradient id="fadeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -2720,7 +2719,7 @@ export default function SoundboardApp() {
                                 d={(() => {
                                   const curve = editingSound.fadeCurve || 'linear';
                                   let points = "M 0,100";
-                                  const steps = 20;
+                                  const steps = 40;
                                   for (let i = 0; i <= steps; i++) {
                                     const x = (i / steps) * 100;
                                     const p = i / steps;
@@ -2736,9 +2735,12 @@ export default function SoundboardApp() {
                               />
                             </svg>
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <span className="text-[10px] uppercase tracking-tighter text-slate-500 font-bold opacity-30">
-                                {editingSound.fadeCurve || 'linear'} Ramp Visualization
-                              </span>
+                              <div className="flex flex-col items-center gap-1 opacity-40">
+                                <Activity className="w-4 h-4 text-cyan-400" />
+                                <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">
+                                  {editingSound.fadeCurve || 'linear'} Ramp
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
