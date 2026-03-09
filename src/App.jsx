@@ -667,8 +667,8 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
           />
 
           {/* Main Toggle Fades (Solid Cyan) - Thinner for better waveform visibility */}
-          <path d={getFadePath('in')} fill="none" stroke="#22d3ee" strokeWidth="1.0" className="drop-shadow-[0_0_3px_rgba(34,211,238,0.3)]" />
-          <path d={getFadePath('out')} fill="none" stroke="#22d3ee" strokeWidth="1.0" className="drop-shadow-[0_0_3px_rgba(34,211,238,0.3)]" />
+          <path d={getFadePath('in')} fill="none" stroke="#22d3ee" strokeWidth="0.5" className="drop-shadow-[0_0_3px_rgba(34,211,238,0.3)]" />
+          <path d={getFadePath('out')} fill="none" stroke="#22d3ee" strokeWidth="0.5" className="drop-shadow-[0_0_3px_rgba(34,211,238,0.3)]" />
 
           {/* Pause/Resume Fades (Dashed) */}
           {sound.mode === 'toggle' && (
@@ -1315,6 +1315,52 @@ export default function SoundboardApp() {
           audio.currentTime = 0;
           updateVisualState(id, 'reset');
         };
+
+        // --- END-OF-TRACK FADE OUT via timeupdate ---
+        audio._fadeOutTriggered = false;
+        audio.addEventListener('timeupdate', () => {
+          const fadeOutDur = sound.fadeOut || 0;
+          if (fadeOutDur <= 0 || audio.loop || !audio.duration || audio._fadeOutTriggered) return;
+
+          const timeLeft = audio.duration - audio.currentTime;
+          if (timeLeft <= fadeOutDur && timeLeft > 0) {
+            audio._fadeOutTriggered = true;
+
+            // Show fade timer on tile
+            startFadeTimer(id, 'FADE OUT', timeLeft);
+
+            // Apply volume ramp down
+            const targetVol = audio.volume;
+            const totalMs = timeLeft * 1000;
+            const steps = 20;
+            const stepTime = totalMs / steps;
+            let elapsed = 0;
+            const curve = sound.fadeCurve || 'linear';
+
+            if (audio._fadeInterval) clearInterval(audio._fadeInterval);
+
+            const fadeInterval = setInterval(() => {
+              elapsed += stepTime;
+              const p = Math.min(1, elapsed / totalMs);
+              const curveP = getCurveProgress(p, curve);
+              const newVol = targetVol * (1 - curveP);
+
+              if (p >= 1 || newVol <= 0.001) {
+                audio.volume = 0;
+                clearInterval(fadeInterval);
+                audio._fadeInterval = null;
+              } else {
+                audio.volume = Math.min(1, Math.max(0, newVol));
+              }
+            }, stepTime);
+            audio._fadeInterval = fadeInterval;
+          }
+        });
+
+        // Reset the flag when audio resets (for looping or replay)
+        audio.addEventListener('seeked', () => {
+          audio._fadeOutTriggered = false;
+        });
       }
 
       if (audio._fadeInterval) {
