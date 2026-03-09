@@ -2507,7 +2507,7 @@ export default function SoundboardApp() {
 
                       <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
                         <div className="flex items-center gap-4">
-                          <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && (COLORS[editingSound.color]?.class || COLORS[0].class)}`}>
+                          <div className={`w-16 h-16 rounded-lg bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && !editingSound.customColor ? (COLORS[editingSound.color]?.class || COLORS[0].class) : 'border border-slate-600'}`} style={!editingSound.image && editingSound.customColor ? { backgroundColor: editingSound.customColor, borderColor: editingSound.customColor, boxShadow: `0 0 15px ${editingSound.customColor}` } : {}}>
                             {editingSound.image ? (
                               <img src={editingSound.image} alt="Preview" className="w-full h-full object-cover" />
                             ) : (
@@ -2534,33 +2534,24 @@ export default function SoundboardApp() {
                             {COLORS.map((c, idx) => (
                               <button
                                 key={c.name}
+                                title={c.name}
                                 onClick={() => setEditingSound({ ...editingSound, color: idx, customColor: undefined })}
                                 className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx && !editingSound.customColor ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
                               />
                             ))}
-                          </div>
-                        )}
-
-                        {!editingSound.image && (
-                          <div className="flex items-center gap-3 pt-3 border-t border-slate-700/50 mt-3">
-                            <label className="text-sm text-slate-400">Custom Color</label>
-                            <div className="relative">
+                            <div
+                              className={`relative w-full aspect-square rounded-full flex items-center justify-center group cursor-pointer transition-all ${editingSound.customColor ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100 bg-slate-700/50 border border-slate-600 hover:bg-slate-700'}`}
+                              style={editingSound.customColor ? { backgroundColor: editingSound.customColor, boxShadow: `0 0 15px ${editingSound.customColor}` } : {}}
+                              title="Custom Color"
+                            >
                               <input
                                 type="color"
                                 value={editingSound.customColor || '#3b82f6'}
                                 onChange={e => setEditingSound({ ...editingSound, customColor: e.target.value })}
-                                className="w-8 h-8 rounded cursor-pointer appearance-none bg-transparent border-0 p-0"
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full rounded-full"
                               />
-                              <div className="absolute inset-0 rounded pointer-events-none ring-1 ring-white/20" style={{ backgroundColor: editingSound.customColor || 'transparent' }} />
+                              {!editingSound.customColor && <Plus className="w-4 h-4 text-slate-400 group-hover:text-white" />}
                             </div>
-                            {editingSound.customColor && (
-                              <button
-                                onClick={() => setEditingSound({ ...editingSound, customColor: undefined })}
-                                className="text-xs text-slate-400 hover:text-white"
-                              >
-                                Clear
-                              </button>
-                            )}
                           </div>
                         )}
                       </div>
