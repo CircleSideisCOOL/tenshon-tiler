@@ -1231,7 +1231,7 @@ export default function SoundboardApp() {
 
       const now = ctx.currentTime;
       const fadeIn = sound.fadeIn || 0;
-      const oneShotTargetVol = sound.volume;
+      const oneShotTargetVol = sound.volume * masterVolume;
 
       if (fadeIn > 0) {
         applyWebAudioFade(gainNode.gain, 0, oneShotTargetVol, now, fadeIn, sound.fadeCurve || 'linear');
@@ -2592,12 +2592,30 @@ export default function SoundboardApp() {
                             <span className="text-xs font-mono font-medium text-cyan-400">%</span>
                           </div>
                         </div>
-                        <input
-                          type="range" min="0" max="3" step="0.01"
-                          value={editingSound.volume}
-                          onChange={e => setEditingSound({ ...editingSound, volume: parseFloat(e.target.value) })}
-                          className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 mt-3"
-                        />
+                        <div className="relative pt-3 h-8 flex items-center">
+                          <input
+                            type="range" min="0" max="3" step="0.01"
+                            value={editingSound.volume}
+                            onChange={e => {
+                              let val = parseFloat(e.target.value);
+                              // Snap to 100% if close
+                              if (Math.abs(val - 1) < 0.05) val = 1;
+                              setEditingSound({ ...editingSound, volume: val });
+                            }}
+                            className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 relative z-10"
+                          />
+                          {/* 100% Marker */}
+                          <div
+                            className="absolute left-[33.33%] top-0 bottom-0 w-0.5 bg-slate-500/50 pointer-events-none flex flex-col items-center"
+                            title="100% Volume"
+                          >
+                            <div className="w-1 h-1 rounded-full bg-cyan-400 absolute -bottom-1"></div>
+                            <span className="text-[10px] text-slate-500 mt-2">100%</span>
+                          </div>
+                          {/* Labels for scale */}
+                          <div className="absolute left-0 bottom-[-1.2rem] text-[8px] text-slate-600">0%</div>
+                          <div className="absolute right-0 bottom-[-1.2rem] text-[8px] text-slate-600">300%</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2680,6 +2698,43 @@ export default function SoundboardApp() {
                             <option value="logarithmic">Logarithmic</option>
                             <option value="s-curve">S-Curve</option>
                           </select>
+                        </div>
+
+                        {/* FADE CURVE VISUALIZATION */}
+                        <div className="pt-2">
+                          <div className="h-16 w-full bg-slate-900/80 rounded border border-slate-700/50 relative overflow-hidden flex items-center justify-center">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="fadeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                  <stop offset="0%" stopColor="rgba(34, 211, 238, 0)" />
+                                  <stop offset="100%" stopColor="rgba(34, 211, 238, 0.4)" />
+                                </linearGradient>
+                              </defs>
+                              <path
+                                d={(() => {
+                                  const curve = editingSound.fadeCurve || 'linear';
+                                  let points = "M 0,100";
+                                  const steps = 20;
+                                  for (let i = 0; i <= steps; i++) {
+                                    const x = (i / steps) * 100;
+                                    const p = i / steps;
+                                    const y = 100 - (getCurveProgress(p, curve) * 100);
+                                    points += ` L ${x},${y}`;
+                                  }
+                                  points += " L 100,100 Z";
+                                  return points;
+                                })()}
+                                fill="url(#fadeGradient)"
+                                stroke="#22d3ee"
+                                strokeWidth="2"
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <span className="text-[10px] uppercase tracking-tighter text-slate-500 font-bold opacity-30">
+                                {editingSound.fadeCurve || 'linear'} Ramp Visualization
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Pause/Resume Fades (Only for Toggle Mode) */}
