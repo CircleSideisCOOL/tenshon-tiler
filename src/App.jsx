@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.5.0",
+  version: "1.6.0",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -666,9 +666,9 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
             opacity="0.6"
           />
 
-          {/* Main Toggle Fades (Solid Red) */}
-          <path d={getFadePath('in')} fill="none" stroke="#ef4444" strokeWidth="1.5" className="drop-shadow-[0_0_4px_rgba(239,68,68,0.3)]" />
-          <path d={getFadePath('out')} fill="none" stroke="#ef4444" strokeWidth="1.5" className="drop-shadow-[0_0_4px_rgba(239,68,68,0.3)]" />
+          {/* Main Toggle Fades (Solid Cyan) - Thinner for better waveform visibility */}
+          <path d={getFadePath('in')} fill="none" stroke="#22d3ee" strokeWidth="1.0" className="drop-shadow-[0_0_3px_rgba(34,211,238,0.3)]" />
+          <path d={getFadePath('out')} fill="none" stroke="#22d3ee" strokeWidth="1.0" className="drop-shadow-[0_0_3px_rgba(34,211,238,0.3)]" />
 
           {/* Pause/Resume Fades (Dashed) */}
           {sound.mode === 'toggle' && (
@@ -680,7 +680,7 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
 
           {/* Sustain Connection */}
           {fadeInWidth + fadeOutWidth < 100 && (
-            <line x1={fadeInWidth} y1="0" x2={100 - fadeOutWidth} y2="0" stroke="#ef4444" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
+            <line x1={fadeInWidth} y1="0" x2={100 - fadeOutWidth} y2="0" stroke="#22d3ee" strokeWidth="0.8" strokeDasharray="4,4" opacity="0.3" />
           )}
         </svg>
 
@@ -692,7 +692,7 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
               {sound.fadeIn > 0 && (
                 <div className="animate-in slide-in-from-left-2 duration-300">
                   <span className="text-xl font-black text-white italic drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">{sound.fadeIn.toFixed(1)}</span>
-                  <span className="text-[7px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade In (Start)</span>
+                  <span className="text-[7px] block -mt-1 font-bold text-cyan-400 uppercase tracking-tighter">Fade In (Start)</span>
                 </div>
               )}
               {sound.mode === 'toggle' && sound.resumeFade > 0 && (
@@ -707,7 +707,7 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
               {sound.fadeOut > 0 && (
                 <div className="text-right animate-in slide-in-from-right-2 duration-300">
                   <span className="text-xl font-black text-white italic drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">{sound.fadeOut.toFixed(1)}</span>
-                  <span className="text-[7px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade Out (End)</span>
+                  <span className="text-[7px] block -mt-1 font-bold text-cyan-400 uppercase tracking-tighter">Fade Out (End)</span>
                 </div>
               )}
               {sound.mode === 'toggle' && sound.pauseFade > 0 && (
