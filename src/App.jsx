@@ -166,7 +166,11 @@ function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInf
     backgroundImage: `url(${sound.image})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
-  } : {};
+  } : (sound.customColor ? {
+    backgroundColor: sound.customColor,
+    borderColor: sound.customColor,
+    boxShadow: isActive && !isEditMode ? `0 0 20px ${sound.customColor}` : undefined
+  } : {});
 
   const ModeIcon = (sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? Power : Zap;
   const modeLabel = (sound.mode === 'toggle' || sound.mode === 'toggle-restart')
@@ -203,12 +207,14 @@ function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInf
           w-full h-full rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
           transition-none duration-100 ease-out border-b-4 shadow-lg select-none
           ${!isEditMode ? 'touch-manipulation cursor-pointer' : 'touch-auto'}
-          ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
+          ${sound.image ? 'border-slate-800 bg-slate-800' : (sound.customColor ? '' : color.class)}
           ${!isEditMode && 'active:border-b-0 active:translate-y-1'}
           ${isActive && !isEditMode
             ? (sound.image
               ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]'
-              : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`)
+              : (sound.customColor
+                ? 'border-b-0 translate-y-1 ring-2 ring-white/50'
+                : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`))
             : ''}
           ${isEditMode ? 'hover:ring-4 ring-cyan-500 cursor-pointer' : ''}
         `}
@@ -388,7 +394,11 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
     backgroundImage: `url(${sound.image})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
-  } : {};
+  } : (sound.customColor ? {
+    backgroundColor: sound.customColor,
+    borderColor: sound.customColor,
+    boxShadow: isActive && !isEditMode ? `0 0 20px ${sound.customColor}` : undefined
+  } : {});
 
   const ModeIcon = (sound.mode === 'toggle' || sound.mode === 'toggle-restart') ? Power : Zap;
   const modeLabel = (sound.mode === 'toggle' || sound.mode === 'toggle-restart')
@@ -428,13 +438,15 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
             w-full aspect-square rounded-2xl p-3 sm:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden
             transition-none duration-100 ease-out border-b-4 shadow-lg select-none
             ${!isEditMode ? 'touch-manipulation cursor-pointer' : 'touch-auto'}
-            ${sound.image ? 'border-slate-800 bg-slate-800' : color.class}
+            ${sound.image ? 'border-slate-800 bg-slate-800' : (sound.customColor ? '' : color.class)}
             ${!isEditMode && 'active:border-b-0 active:translate-y-1'}
             ${isEditMode ? 'cursor-grab active:cursor-grabbing hover:ring-4 ring-cyan-500' : ''}
             ${isActive && !isEditMode
               ? (sound.image
                 ? 'border-b-0 translate-y-1 ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.5)]'
-                : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`)
+                : (sound.customColor
+                  ? 'border-b-0 translate-y-1 ring-2 ring-white/50'
+                  : `${color.active} border-b-0 translate-y-1 ${color.glow} ring-2 ring-white/50`))
               : ''}
           `}
         >
@@ -858,6 +870,41 @@ export default function SoundboardApp() {
     }, duration * 1000 + 100);
   }, []);
 
+  const getCurveProgress = (progress, curve) => {
+    let p = Math.max(0, Math.min(1, progress));
+    switch (curve) {
+      case 'exponential': return Math.pow(p, 2);
+      case 'logarithmic': return Math.log10(1 + 9 * p);
+      case 's-curve': return (Math.sin((p - 0.5) * Math.PI) + 1) / 2;
+      case 'linear':
+      default: return p;
+    }
+  };
+
+  const applyWebAudioFade = (gainNodeParam, startVol, targetVol, startTime, duration, curve) => {
+    gainNodeParam.cancelScheduledValues(startTime);
+    gainNodeParam.setValueAtTime(startVol, startTime);
+    if (duration <= 0) {
+      gainNodeParam.setValueAtTime(targetVol, startTime);
+      return;
+    }
+    const safeTarget = Math.max(targetVol, 0.0001);
+
+    if (curve === 'exponential') {
+      gainNodeParam.exponentialRampToValueAtTime(safeTarget, startTime + duration);
+    } else if (curve === 'logarithmic' || curve === 's-curve') {
+      const steps = 30;
+      const curveArray = new Float32Array(steps);
+      for (let i = 0; i < steps; i++) {
+        const p = i / (steps - 1);
+        curveArray[i] = startVol + (targetVol - startVol) * getCurveProgress(p, curve);
+      }
+      gainNodeParam.setValueCurveAtTime(curveArray, startTime, duration);
+    } else {
+      gainNodeParam.linearRampToValueAtTime(targetVol, startTime + duration);
+    }
+  };
+
   const toggleGlobalPause = async () => {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -1045,17 +1092,24 @@ export default function SoundboardApp() {
           const startVol = audio.volume;
           const steps = 20;
           const stepTime = fadeTime / steps;
-          const volStep = startVol / steps;
+          let elapsed = 0;
+          const curve = sound.fadeCurve || 'linear';
 
           const fadeInterval = setInterval(() => {
-            if (audio.volume > volStep) {
-              audio.volume -= volStep;
-            } else {
+            elapsed += stepTime;
+            const p = Math.min(1, elapsed / fadeTime);
+            // Reverse curve progress since we are going from startVol -> 0
+            const curveP = getCurveProgress(p, curve);
+            const currentVol = startVol + (0 - startVol) * curveP;
+
+            if (p >= 1 || currentVol <= 0.001) {
               audio.volume = 0;
               audio.pause();
               clearInterval(fadeInterval);
               audio._fadeInterval = null;
               updateVisualState(id, 'reset');
+            } else {
+              audio.volume = Math.min(1, currentVol);
             }
           }, stepTime);
           audio._fadeInterval = fadeInterval;
@@ -1108,17 +1162,21 @@ export default function SoundboardApp() {
 
         const steps = 20;
         const stepTime = fadeTime / steps;
-        const volStep = safeVol / steps;
+        let elapsed = 0;
+        const curve = sound.fadeCurve || 'linear';
 
-        let currentVol = 0;
         const fadeInterval = setInterval(() => {
-          currentVol += volStep;
-          if (currentVol >= safeVol) {
-            audio.volume = safeVol;
+          elapsed += stepTime;
+          const p = Math.min(1, elapsed / fadeTime);
+          const curveP = getCurveProgress(p, curve);
+          const currentVol = safeVol * curveP;
+
+          if (p >= 1 || currentVol >= safeVol) {
+            audio.volume = Math.min(1, safeVol);
             clearInterval(fadeInterval);
             audio._fadeInterval = null;
           } else {
-            audio.volume = currentVol;
+            audio.volume = Math.min(1, currentVol);
           }
         }, stepTime);
         audio._fadeInterval = fadeInterval;
@@ -1137,10 +1195,9 @@ export default function SoundboardApp() {
         if (existingSources && existingSources.length > 0) {
           existingSources.forEach(({ source, gainNode }) => {
             try {
-              const stopTime = ctx.currentTime + 0.05;
-              gainNode.gain.cancelScheduledValues(ctx.currentTime);
-              gainNode.gain.setValueAtTime(gainNode.gain.value, ctx.currentTime);
-              gainNode.gain.linearRampToValueAtTime(0, stopTime);
+              const fadeOutTime = sound.fadeOut !== undefined ? sound.fadeOut : 0.05;
+              const stopTime = ctx.currentTime + fadeOutTime;
+              applyWebAudioFade(gainNode.gain, gainNode.gain.value, 0, ctx.currentTime, fadeOutTime, sound.fadeCurve || 'linear');
               source.stop(stopTime);
             } catch (e) { }
           });
@@ -1175,8 +1232,7 @@ export default function SoundboardApp() {
       const oneShotTargetVol = sound.volume;
 
       if (fadeIn > 0) {
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(oneShotTargetVol, now + fadeIn);
+        applyWebAudioFade(gainNode.gain, 0, oneShotTargetVol, now, fadeIn, sound.fadeCurve || 'linear');
         startFadeTimer(id, 'FADE IN', fadeIn);
       } else {
         gainNode.gain.setValueAtTime(oneShotTargetVol, now);
@@ -2476,10 +2532,33 @@ export default function SoundboardApp() {
                             {COLORS.map((c, idx) => (
                               <button
                                 key={c.name}
-                                onClick={() => setEditingSound({ ...editingSound, color: idx })}
-                                className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                                onClick={() => setEditingSound({ ...editingSound, color: idx, customColor: undefined })}
+                                className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx && !editingSound.customColor ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
                               />
                             ))}
+                          </div>
+                        )}
+
+                        {!editingSound.image && (
+                          <div className="flex items-center gap-3 pt-3 border-t border-slate-700/50 mt-3">
+                            <label className="text-sm text-slate-400">Custom Color</label>
+                            <div className="relative">
+                              <input
+                                type="color"
+                                value={editingSound.customColor || '#3b82f6'}
+                                onChange={e => setEditingSound({ ...editingSound, customColor: e.target.value })}
+                                className="w-8 h-8 rounded cursor-pointer appearance-none bg-transparent border-0 p-0"
+                              />
+                              <div className="absolute inset-0 rounded pointer-events-none ring-1 ring-white/20" style={{ backgroundColor: editingSound.customColor || 'transparent' }} />
+                            </div>
+                            {editingSound.customColor && (
+                              <button
+                                onClick={() => setEditingSound({ ...editingSound, customColor: undefined })}
+                                className="text-xs text-slate-400 hover:text-white"
+                              >
+                                Clear
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2521,7 +2600,7 @@ export default function SoundboardApp() {
                           </div>
                         </div>
                         <input
-                          type="range" min="0" max="1" step="0.01"
+                          type="range" min="0" max="3" step="0.01"
                           value={editingSound.volume}
                           onChange={e => setEditingSound({ ...editingSound, volume: parseFloat(e.target.value) })}
                           className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 mt-3"
@@ -2593,6 +2672,21 @@ export default function SoundboardApp() {
                               className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                             />
                           </div>
+                        </div>
+
+                        {/* FADE CURVE SELECTOR */}
+                        <div className="pt-2 border-t border-slate-700/50 flex justify-between items-center text-sm">
+                          <span className="text-slate-400">Fade Curve</span>
+                          <select
+                            value={editingSound.fadeCurve || 'linear'}
+                            onChange={e => setEditingSound({ ...editingSound, fadeCurve: e.target.value })}
+                            className="bg-slate-900 text-cyan-400 border border-slate-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer text-xs"
+                          >
+                            <option value="linear">Linear</option>
+                            <option value="exponential">Exponential</option>
+                            <option value="logarithmic">Logarithmic</option>
+                            <option value="s-curve">S-Curve</option>
+                          </select>
                         </div>
 
                         {/* Pause/Resume Fades (Only for Toggle Mode) */}
