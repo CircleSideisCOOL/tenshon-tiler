@@ -593,26 +593,30 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
 
   const fadeInWidth = duration > 0 ? (sound.fadeIn / duration) * 100 : 0;
   const fadeOutWidth = duration > 0 ? (sound.fadeOut / duration) * 100 : 0;
+  const resumeFadeWidth = duration > 0 ? (sound.resumeFade / duration) * 100 : 0;
+  const pauseFadeWidth = duration > 0 ? (sound.pauseFade / duration) * 100 : 0;
   const curve = sound.fadeCurve || 'linear';
 
   // Calculate points for the fade lines based on curve
-  const getFadePath = (type) => {
+  const getFadePath = (type, widthOverride) => {
     let d = "";
     const steps = 30;
-    if (type === 'in') {
+    const width = widthOverride !== undefined ? widthOverride : (type.includes('in') || type === 'resume' ? fadeInWidth : fadeOutWidth);
+
+    if (type === 'in' || type === 'resume') {
       d = "M 0,100";
       for (let i = 0; i <= steps; i++) {
         const p = i / steps;
-        const x = p * fadeInWidth;
+        const x = p * width;
         const y = 100 - (curveProgress(p, curve) * 100);
         d += ` L ${x},${y}`;
       }
     } else {
-      const startX = Math.max(0, 100 - fadeOutWidth);
+      const startX = Math.max(0, 100 - width);
       d = `M ${startX},0`;
       for (let i = 0; i <= steps; i++) {
         const p = i / steps;
-        const x = startX + (p * fadeOutWidth);
+        const x = startX + (p * width);
         const y = curveProgress(p, curve) * 100;
         d += ` L ${x},${y}`;
       }
@@ -655,36 +659,65 @@ const WaveformVisualizer = ({ sound, curveProgress }) => {
             </linearGradient>
           </defs>
 
-          {/* Shading area */}
+          {/* Shading area - subtle */}
           <path
-            d={`M 0,100 ${getFadePath('in')} L ${Math.max(0, 100 - fadeOutWidth)},0 ${getFadePath('out')} L 100,100 Z`}
+            d={`M 0,100 ${getFadePath('in')} L ${Math.max(0, 100 - fadeOutWidth)}, 0 ${getFadePath('out')} L 100,100 Z`}
             fill="url(#waveformFade)"
+            opacity="0.6"
           />
 
-          {/* Red Ramp Lines (Like your drawing!) */}
-          <path d={getFadePath('in')} fill="none" stroke="#ef4444" strokeWidth="2.5" className="drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-          <path d={getFadePath('out')} fill="none" stroke="#ef4444" strokeWidth="2.5" className="drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+          {/* Main Toggle Fades (Solid Red) */}
+          <path d={getFadePath('in')} fill="none" stroke="#ef4444" strokeWidth="1.5" className="drop-shadow-[0_0_4px_rgba(239,68,68,0.3)]" />
+          <path d={getFadePath('out')} fill="none" stroke="#ef4444" strokeWidth="1.5" className="drop-shadow-[0_0_4px_rgba(239,68,68,0.3)]" />
+
+          {/* Pause/Resume Fades (Dashed) */}
+          {sound.mode === 'toggle' && (
+            <>
+              <path d={getFadePath('resume', resumeFadeWidth)} fill="none" stroke="#6366f1" strokeWidth="1.2" strokeDasharray="3,2" opacity="0.8" />
+              <path d={getFadePath('pause', pauseFadeWidth)} fill="none" stroke="#f59e0b" strokeWidth="1.2" strokeDasharray="3,2" opacity="0.8" />
+            </>
+          )}
 
           {/* Sustain Connection */}
           {fadeInWidth + fadeOutWidth < 100 && (
-            <line x1={fadeInWidth} y1="0" x2={100 - fadeOutWidth} y2="0" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
+            <line x1={fadeInWidth} y1="0" x2={100 - fadeOutWidth} y2="0" stroke="#ef4444" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
           )}
         </svg>
 
         {/* Labels Layer */}
         <div className="absolute inset-0 z-20 pointer-events-none p-2">
-          {sound.fadeIn > 0 && (
-            <div className="absolute top-2 left-2 animate-in slide-in-from-left-2 duration-300">
-              <span className="text-xl font-black text-white italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-90">{sound.fadeIn.toFixed(1)}</span>
-              <span className="text-[8px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade In Seconds</span>
+          {/* Main Fades */}
+          <div className="flex justify-between w-full h-full">
+            <div className="flex flex-col">
+              {sound.fadeIn > 0 && (
+                <div className="animate-in slide-in-from-left-2 duration-300">
+                  <span className="text-xl font-black text-white italic drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">{sound.fadeIn.toFixed(1)}</span>
+                  <span className="text-[7px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade In (Start)</span>
+                </div>
+              )}
+              {sound.mode === 'toggle' && sound.resumeFade > 0 && (
+                <div className="mt-1 animate-in slide-in-from-left-2 duration-300 delay-75 opacity-70">
+                  <span className="text-xs font-bold text-indigo-400 drop-shadow-sm">{sound.resumeFade.toFixed(1)}s</span>
+                  <span className="text-[6px] block -mt-0.5 font-medium text-indigo-300/80 uppercase">Resume</span>
+                </div>
+              )}
             </div>
-          )}
-          {sound.fadeOut > 0 && (
-            <div className="absolute top-2 right-2 text-right animate-in slide-in-from-right-2 duration-300">
-              <span className="text-xl font-black text-white italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-90">{sound.fadeOut.toFixed(1)}</span>
-              <span className="text-[8px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade Out Seconds</span>
+
+            <div className="flex flex-col items-end">
+              {sound.fadeOut > 0 && (
+                <div className="text-right animate-in slide-in-from-right-2 duration-300">
+                  <span className="text-xl font-black text-white italic drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">{sound.fadeOut.toFixed(1)}</span>
+                  <span className="text-[7px] block -mt-1 font-bold text-red-500 uppercase tracking-tighter">Fade Out (End)</span>
+                </div>
+              )}
+              {sound.mode === 'toggle' && sound.pauseFade > 0 && (
+                <div className="text-right mt-1 animate-in slide-in-from-right-2 duration-300 delay-75 opacity-70">
+                  <span className="text-xs font-bold text-amber-500 drop-shadow-sm">{sound.pauseFade.toFixed(1)}s</span>
+                  <span className="text-[6px] block -mt-0.5 font-medium text-amber-400/80 uppercase">Pause</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 text-[9px] font-mono text-slate-400">
             {duration.toFixed(2)}s Total Clip Duration
