@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.4.0",
+  version: "1.5.0",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
