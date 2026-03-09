@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.6.0",
+  version: "1.6.1",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -1484,7 +1484,7 @@ export default function SoundboardApp() {
       };
     }
 
-  }, [sounds, masterVolume, isGlobalPaused]);
+  }, [sounds, masterVolume, isGlobalPaused, tutorialSound1, tutorialSound2, startFadeTimer]);
 
   const stopAll = () => {
     const ctx = getAudioContext();
@@ -2467,6 +2467,120 @@ export default function SoundboardApp() {
                         <p className="font-bold text-slate-200">Saving Your Board</p>
                         <p className="text-sm text-slate-400">Use <span className="text-cyan-400">Export</span> to download your <span className="text-white font-mono">.ttsave</span> file. Everything is stored locally!</p>
                       </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Customizing Appearance */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> Customizing Appearance
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Color Presets</p>
+                        <p className="text-sm text-slate-400">In the Edit Modal, choose from <span className="text-cyan-400">15+ color presets</span> (Red, Orange, Cyan, etc.) to visually organize your board by scene or type.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-sm border-2 border-white" style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Custom Colors</p>
+                        <p className="text-sm text-slate-400">Click the <span className="text-white font-bold">rainbow circle</span> at the end of the color palette to pick <span className="text-cyan-400">any hex color</span> you want. Your tile, border, and glow will all match.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                        <ImageIcon className="w-4 h-4 text-cyan-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Custom Images</p>
+                        <p className="text-sm text-slate-400">Upload a <span className="text-cyan-400">thumbnail image</span> for any tile. The image becomes the tile background with a dark gradient overlay for readability.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-none w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                        <MessageSquare className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-200">Notes & Cues</p>
+                        <p className="text-sm text-slate-400">Add <span className="text-amber-400">notes</span> to any tile (e.g., "Play after Romeo's line"). Notes appear as italic text directly on the tile.</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* How Fades Work */}
+                <section className="space-y-6">
+                  <h4 className="text-sm font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="h-px w-8 bg-slate-800"></div> How Fades Work
+                  </h4>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Fades let you control how audio transitions in and out. All fades are configured in the <span className="text-cyan-400 font-bold">Advanced Audio</span> tab of the Edit Modal.
+                  </p>
+
+                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-cyan-400"></div>
+                          <p className="font-bold text-sm text-cyan-400">Fade In (Start)</p>
+                        </div>
+                        <p className="text-xs text-slate-400">When audio starts playing, volume gradually ramps from <span className="text-white">0%</span> up to <span className="text-white">full volume</span> over the set duration. Great for ambient backgrounds.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-cyan-400"></div>
+                          <p className="font-bold text-sm text-cyan-400">Fade Out (End)</p>
+                        </div>
+                        <p className="text-xs text-slate-400">When the audio is about to end naturally, volume ramps down to <span className="text-white">0%</span>. You'll see a live <span className="text-white">"FADE OUT"</span> countdown on the tile!</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-700/50 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-indigo-400"></div>
+                          <p className="font-bold text-sm text-indigo-400">Resume Fade</p>
+                        </div>
+                        <p className="text-xs text-slate-400">For <span className="text-white">Pausable</span> toggle sounds only. When you un-pause, volume fades back in smoothly instead of snapping to full volume.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                          <p className="font-bold text-sm text-amber-400">Pause Fade</p>
+                        </div>
+                        <p className="text-xs text-slate-400">For <span className="text-white">Pausable</span> toggle sounds only. When you pause, volume fades down before actually stopping. The tile shows a <span className="text-white">"PAUSING"</span> timer.</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-700/50 space-y-2">
+                      <p className="font-bold text-sm text-slate-300 flex items-center gap-2"><Activity className="w-4 h-4 text-rose-400" /> Fade Curves</p>
+                      <p className="text-xs text-slate-400">Choose the <span className="text-white">shape</span> of the volume ramp:</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                        {[
+                          { name: 'Linear', desc: 'Steady, even ramp' },
+                          { name: 'Exponential', desc: 'Slow start, fast end' },
+                          { name: 'Logarithmic', desc: 'Fast start, slow end' },
+                          { name: 'S-Curve', desc: 'Smooth ease in/out' }
+                        ].map(c => (
+                          <div key={c.name} className="bg-slate-900 rounded-lg p-2 border border-slate-700/50">
+                            <p className="text-xs font-bold text-white">{c.name}</p>
+                            <p className="text-[10px] text-slate-500">{c.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-700/50 space-y-2">
+                      <p className="font-bold text-sm text-slate-300 flex items-center gap-2"><Volume2 className="w-4 h-4 text-green-400" /> Waveform Visualizer</p>
+                      <p className="text-xs text-slate-400">In the Advanced Audio tab, you'll see a <span className="text-cyan-400">waveform graph</span> of your audio file with the fade-in and fade-out ramp lines overlaid. This helps you see exactly where fades occur relative to the audio content.</p>
                     </div>
                   </div>
                 </section>
