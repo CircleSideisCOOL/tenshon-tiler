@@ -739,8 +739,9 @@ export default function SoundboardApp() {
   useEffect(() => {
     if (previewAudioRef.current && editingSound) {
       if (previewAudioRef.current.volume !== undefined) {
-        // APPLY MASTER VOLUME TO PREVIEW AS WELL
-        previewAudioRef.current.volume = editingSound.volume * masterVolume;
+        // APPLY MASTER VOLUME TO PREVIEW AS WELL (safely clamped)
+        const newVol = editingSound.volume * masterVolume;
+        previewAudioRef.current.volume = Math.min(1, Math.max(0, newVol));
       }
     }
   }, [editingSound, masterVolume]);
@@ -777,8 +778,9 @@ export default function SoundboardApp() {
         if (!audioEl._fadeInterval && !isGlobalPaused) {
           const calculatedVol = sound.volume * masterVolume;
           const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
-          if (Math.abs(audioEl.volume - finalVol) > 0.001) {
-            audioEl.volume = finalVol;
+          const clampedVol = Math.min(1, Math.max(0, finalVol));
+          if (Math.abs(audioEl.volume - clampedVol) > 0.001) {
+            audioEl.volume = clampedVol;
           }
         }
       }
@@ -800,7 +802,7 @@ export default function SoundboardApp() {
       if (tAudioEl && !tAudioEl._fadeInterval && !isGlobalPaused) {
         const calculatedVol = ts.volume * masterVolume;
         const finalVol = calculatedVol < 0.001 ? 0 : calculatedVol;
-        tAudioEl.volume = finalVol;
+        tAudioEl.volume = Math.min(1, Math.max(0, finalVol));
       }
       const tSources = activeSourcesRef.current[ts.id];
       if (tSources) {
@@ -813,7 +815,7 @@ export default function SoundboardApp() {
     // Also update preview audio if playing
     if (previewAudioRef.current && isPreviewPlaying && editingSound) {
       const pVol = editingSound.volume * masterVolume;
-      previewAudioRef.current.volume = pVol < 0.001 ? 0 : pVol;
+      previewAudioRef.current.volume = Math.min(1, Math.max(0, pVol < 0.001 ? 0 : pVol));
     }
 
   }, [masterVolume, sounds, tutorialSound1, tutorialSound2, editingSound, isPreviewPlaying, isGlobalPaused]);
@@ -1182,7 +1184,7 @@ export default function SoundboardApp() {
         audio._fadeInterval = fadeInterval;
         startFadeTimer(id, isResuming ? 'RESUMING' : 'FADE IN', fadeDuration);
       } else {
-        audio.volume = safeVol;
+        audio.volume = Math.min(1, Math.max(0, safeVol));
         audio.play().catch(e => console.error(e));
         updateVisualState(id, true);
       }
