@@ -1308,7 +1308,10 @@ export default function SoundboardApp() {
       }
 
       // CHECK IF STOPPED/PAUSED -> RESUME IT
-      if (!audio || audio.src !== sound.src) {
+      // NOTE: audio.src returns a fully resolved URL, but sound.src may be relative.
+      // We must resolve sound.src to compare correctly.
+      const resolvedSrc = new URL(sound.src, window.location.origin).href;
+      if (!audio || audio.src !== resolvedSrc) {
         audio = new Audio(sound.src);
         activeElementsRef.current[id] = audio;
         audio.onended = () => {
