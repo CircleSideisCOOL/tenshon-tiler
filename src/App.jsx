@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const APP_CONFIG = {
   // 1. Website Title (Browser Tab)
   title: "Tenshon Tiler",
-  version: "1.3.9",
+  version: "1.4.0",
 
   // 2. Favicon (Icon in Browser Tab & Header Logo)
   // Modified to use an inline SVG so it works in the preview immediately
@@ -607,6 +607,7 @@ export default function SoundboardApp() {
 
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState('basic');
   const previewAudioRef = useRef(null);
   const fileInputRef = useRef(null);
   const pauseFadeTimeoutRef = useRef(null);
@@ -718,6 +719,7 @@ export default function SoundboardApp() {
         previewAudioRef.current.currentTime = 0;
       }
       setIsPreviewPlaying(false);
+      setActiveModalTab('basic');
     }
   }, [showModal]);
 
@@ -2353,344 +2355,369 @@ export default function SoundboardApp() {
                 </div>
               </div>
 
-              <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-cyan-400 uppercase tracking-wide">1. Audio Source</label>
-                  <div className="flex gap-4 items-start">
-                    <label className="flex-1 cursor-pointer group">
-                      <input type="file" accept="audio/*" onChange={(e) => handleFileSelect(e, 'audio')} className="hidden" />
-                      <div className="border border-slate-600 bg-slate-700/30 rounded-lg p-3 text-center hover:bg-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-3">
-                        <Upload className="w-5 h-5 text-slate-400 group-hover:text-cyan-400" />
-                        <span className="text-sm text-slate-300 truncate max-w-[200px]">
-                          {editingSound.src ? (editingSound.src === 'demo_beep' ? 'Using Demo Sound' : 'Audio Loaded') : 'Upload Audio File'}
-                        </span>
-                      </div>
-                    </label>
-                    {editingSound.src && (
-                      <button
-                        onClick={togglePreview}
-                        className={`p-3 rounded-lg transition-colors border border-slate-600 ${isPreviewPlaying ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-700 hover:bg-cyan-600 text-white'}`}
-                        title={isPreviewPlaying ? "Stop" : "Preview"}
-                      >
-                        {isPreviewPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5" />}
-                      </button>
-                    )}
-                  </div>
-                  {editingSound.src && (
-                    <button onClick={() => {
-                      setEditingSound({ ...editingSound, src: '', name: editingSound.name || '' });
-                      if (previewAudioRef.current) { previewAudioRef.current.pause(); setIsPreviewPlaying(false); }
-                    }} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
-                      Remove Audio
-                    </button>
-                  )}
+              <div className="p-6 overflow-y-auto custom-scrollbar relative">
+                <div className="flex border-b border-slate-700 bg-slate-800 sticky -top-6 pt-2 z-10 mb-6">
+                  <button
+                    onClick={() => setActiveModalTab('basic')}
+                    className={`flex-1 pb-3 text-sm font-bold transition-all border-b-2 ${activeModalTab === 'basic' ? 'border-cyan-400 text-cyan-400' : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500'}`}
+                  >
+                    Basic Settings
+                  </button>
+                  <button
+                    onClick={() => setActiveModalTab('advanced')}
+                    className={`flex-1 pb-3 text-sm font-bold transition-all border-b-2 ${activeModalTab === 'advanced' ? 'border-cyan-400 text-cyan-400' : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500'}`}
+                  >
+                    Advanced Audio
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-400">Name</label>
-                    <input
-                      type="text"
-                      value={editingSound.name}
-                      onChange={e => setEditingSound({ ...editingSound, name: e.target.value })}
-                      placeholder="e.g. Sword Clang"
-                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-400">Category</label>
-                    <input
-                      type="text"
-                      list="category-suggestions"
-                      value={editingSound.category}
-                      onChange={e => setEditingSound({ ...editingSound, category: e.target.value })}
-                      placeholder="e.g. Act 1"
-                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
-                    />
-                    <datalist id="category-suggestions">
-                      {uniqueRelevantCategories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
-                    </datalist>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
-                    <MessageSquare className="w-4 h-4" /> Notes & Cues
-                  </label>
-                  <textarea
-                    value={editingSound.note || ''}
-                    onChange={e => setEditingSound({ ...editingSound, note: e.target.value })}
-                    placeholder="e.g. Play this when she says '...'"
-                    className="w-full h-24 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-y custom-scrollbar"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-cyan-400 uppercase tracking-wide">2. Appearance</label>
-
-                  <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && (COLORS[editingSound.color]?.class || COLORS[0].class)}`}>
-                        {editingSound.image ? (
-                          <img src={editingSound.image} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <ImageIcon className="w-6 h-6 text-white/50" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <label className="cursor-pointer inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
-                          <input type="file" accept="image/*" onChange={(e) => handleFileSelect(e, 'image')} className="hidden" />
-                          <Upload className="w-4 h-4" />
-                          {editingSound.image ? 'Change Image' : 'Upload Custom Image'}
+                {activeModalTab === 'basic' ? (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-cyan-400 uppercase tracking-widest">Audio Source</label>
+                      <div className="flex gap-4 items-start">
+                        <label className="flex-1 cursor-pointer group">
+                          <input type="file" accept="audio/*" onChange={(e) => handleFileSelect(e, 'audio')} className="hidden" />
+                          <div className="border border-slate-600 bg-slate-700/30 rounded-lg p-3 text-center hover:bg-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-3">
+                            <Upload className="w-5 h-5 text-slate-400 group-hover:text-cyan-400" />
+                            <span className="text-sm text-slate-300 truncate max-w-[200px]">
+                              {editingSound.src ? (editingSound.src === 'demo_beep' ? 'Using Demo Sound' : 'Audio Loaded') : 'Upload Audio File'}
+                            </span>
+                          </div>
                         </label>
-                        <p className="text-xs text-slate-500 mt-1">Images override colors.</p>
-                        {editingSound.image && (
-                          <button onClick={() => setEditingSound({ ...editingSound, image: null })} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
-                            Remove Image
+                        {editingSound.src && (
+                          <button
+                            onClick={togglePreview}
+                            className={`p-3 rounded-lg transition-colors border border-slate-600 ${isPreviewPlaying ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-700 hover:bg-cyan-600 text-white'}`}
+                            title={isPreviewPlaying ? "Stop" : "Preview"}
+                          >
+                            {isPreviewPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5" />}
                           </button>
                         )}
                       </div>
+                      {editingSound.src && (
+                        <button onClick={() => {
+                          setEditingSound({ ...editingSound, src: '', name: editingSound.name || '' });
+                          if (previewAudioRef.current) { previewAudioRef.current.pause(); setIsPreviewPlaying(false); }
+                        }} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
+                          Remove Audio
+                        </button>
+                      )}
                     </div>
 
-                    {!editingSound.image && (
-                      <div className="grid grid-cols-8 gap-2 mt-2">
-                        {COLORS.map((c, idx) => (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-400">Name</label>
+                        <input
+                          type="text"
+                          value={editingSound.name}
+                          onChange={e => setEditingSound({ ...editingSound, name: e.target.value })}
+                          placeholder="e.g. Sword Clang"
+                          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-400">Category</label>
+                        <input
+                          type="text"
+                          list="category-suggestions"
+                          value={editingSound.category}
+                          onChange={e => setEditingSound({ ...editingSound, category: e.target.value })}
+                          placeholder="e.g. Act 1"
+                          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white"
+                        />
+                        <datalist id="category-suggestions">
+                          {uniqueRelevantCategories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
+                        </datalist>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
+                        <MessageSquare className="w-4 h-4" /> Notes & Cues
+                      </label>
+                      <textarea
+                        value={editingSound.note || ''}
+                        onChange={e => setEditingSound({ ...editingSound, note: e.target.value })}
+                        placeholder="e.g. Play this when she says '...'"
+                        className="w-full h-24 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:outline-none text-white resize-y custom-scrollbar"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-cyan-400 uppercase tracking-widest">Appearance</label>
+
+                      <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-16 h-16 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center overflow-hidden shrink-0 ${!editingSound.image && (COLORS[editingSound.color]?.class || COLORS[0].class)}`}>
+                            {editingSound.image ? (
+                              <img src={editingSound.image} alt="Preview" className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon className="w-6 h-6 text-white/50" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <label className="cursor-pointer inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
+                              <input type="file" accept="image/*" onChange={(e) => handleFileSelect(e, 'image')} className="hidden" />
+                              <Upload className="w-4 h-4" />
+                              {editingSound.image ? 'Change Image' : 'Upload Custom Image'}
+                            </label>
+                            <p className="text-xs text-slate-500 mt-1">Images override colors.</p>
+                            {editingSound.image && (
+                              <button onClick={() => setEditingSound({ ...editingSound, image: null })} className="text-xs text-red-400 hover:text-red-300 mt-2 block">
+                                Remove Image
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {!editingSound.image && (
+                          <div className="grid grid-cols-8 gap-2 mt-2">
+                            {COLORS.map((c, idx) => (
+                              <button
+                                key={c.name}
+                                onClick={() => setEditingSound({ ...editingSound, color: idx })}
+                                className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-400">Shortcut Key</label>
+                        <div className="relative">
+                          <Keyboard className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                          <input
+                            type="text"
+                            maxLength={1}
+                            value={editingSound.keybind}
+                            onChange={e => setEditingSound({ ...editingSound, keybind: e.target.value.toUpperCase() })}
+                            className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-9 px-3 py-2 font-mono uppercase text-center text-white focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+                            placeholder="None"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-sm font-medium text-slate-400">Clip Volume</label>
+                          <div className="flex items-center">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={parseFloat((editingSound.volume * 100).toFixed(2))}
+                              onChange={(e) => {
+                                let val = parseFloat(e.target.value);
+                                if (!isNaN(val)) setEditingSound({ ...editingSound, volume: val / 100 });
+                              }}
+                              className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                              title="Edit Clip Volume"
+                            />
+                            <span className="text-xs font-mono font-medium text-cyan-400">%</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range" min="0" max="1" step="0.01"
+                          value={editingSound.volume}
+                          onChange={e => setEditingSound({ ...editingSound, volume: parseFloat(e.target.value) })}
+                          className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 mt-3"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeModalTab === 'advanced' ? (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-cyan-400 uppercase tracking-widest">Audio Fades</label>
+                      {/* FADE CONTROLS */}
+                      <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
+                        {/* Standard Fades (Start/End) */}
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-slate-400">Fade In (Start)</span>
+                              <div className="flex items-center">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  max="5"
+                                  value={parseFloat((editingSound.fadeIn || 0).toFixed(2))}
+                                  onChange={(e) => {
+                                    let val = parseFloat(e.target.value);
+                                    if (!isNaN(val)) setEditingSound({ ...editingSound, fadeIn: val });
+                                  }}
+                                  className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                                  title="Edit Fade In Time"
+                                />
+                                <span className="text-cyan-400 ml-0.5">s</span>
+                              </div>
+                            </div>
+                            <input
+                              type="range" min="0" max="5" step="0.5"
+                              value={editingSound.fadeIn || 0}
+                              onChange={e => setEditingSound({ ...editingSound, fadeIn: parseFloat(e.target.value) })}
+                              className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-slate-400">Fade Out (End)</span>
+                              <div className="flex items-center">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  max="5"
+                                  value={parseFloat((editingSound.fadeOut || 0).toFixed(2))}
+                                  onChange={(e) => {
+                                    let val = parseFloat(e.target.value);
+                                    if (!isNaN(val)) setEditingSound({ ...editingSound, fadeOut: val });
+                                  }}
+                                  className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                                  title="Edit Fade Out Time"
+                                />
+                                <span className="text-cyan-400 ml-0.5">s</span>
+                              </div>
+                            </div>
+                            <input
+                              type="range" min="0" max="5" step="0.5"
+                              value={editingSound.fadeOut || 0}
+                              onChange={e => setEditingSound({ ...editingSound, fadeOut: parseFloat(e.target.value) })}
+                              className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Pause/Resume Fades (Only for Toggle Mode) */}
+                        {editingSound.mode === 'toggle' && (
+                          <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-400">Resume Fade</span>
+                                <div className="flex items-center">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    max="5"
+                                    value={parseFloat((editingSound.resumeFade ?? 0.1).toFixed(2))}
+                                    onChange={(e) => {
+                                      let val = parseFloat(e.target.value);
+                                      if (!isNaN(val)) setEditingSound({ ...editingSound, resumeFade: val });
+                                    }}
+                                    className="text-indigo-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                                    title="Edit Resume Fade Time"
+                                  />
+                                  <span className="text-indigo-400 ml-0.5">s</span>
+                                </div>
+                              </div>
+                              <input
+                                type="range" min="0" max="5" step="0.1"
+                                value={editingSound.resumeFade ?? 0.1}
+                                onChange={e => setEditingSound({ ...editingSound, resumeFade: parseFloat(e.target.value) })}
+                                className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-400">Pause Fade</span>
+                                <div className="flex items-center">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    max="5"
+                                    value={parseFloat((editingSound.pauseFade ?? 0.1).toFixed(2))}
+                                    onChange={(e) => {
+                                      let val = parseFloat(e.target.value);
+                                      if (!isNaN(val)) setEditingSound({ ...editingSound, pauseFade: val });
+                                    }}
+                                    className="text-amber-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
+                                    title="Edit Pause Fade Time"
+                                  />
+                                  <span className="text-amber-400 ml-0.5">s</span>
+                                </div>
+                              </div>
+                              <input
+                                type="range" min="0" max="5" step="0.1"
+                                value={editingSound.pauseFade ?? 0.1}
+                                onChange={e => setEditingSound({ ...editingSound, pauseFade: parseFloat(e.target.value) })}
+                                className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                        <div className="flex bg-slate-800 rounded-md p-0.5">
                           <button
-                            key={c.name}
-                            onClick={() => setEditingSound({ ...editingSound, color: idx })}
-                            className={`w-full aspect-square rounded-full ${c.class} ${editingSound.color === idx ? 'ring-2 ring-white scale-110' : 'opacity-60 hover:opacity-100'}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-400">Shortcut Key</label>
-                    <div className="relative">
-                      <Keyboard className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                      <input
-                        type="text"
-                        maxLength={1}
-                        value={editingSound.keybind}
-                        onChange={e => setEditingSound({ ...editingSound, keybind: e.target.value.toUpperCase() })}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-9 px-3 py-2 font-mono uppercase text-center text-white focus:ring-1 focus:ring-cyan-500 focus:outline-none"
-                        placeholder="None"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="block text-sm font-medium text-slate-400">Clip Volume</label>
-                      <div className="flex items-center">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={parseFloat((editingSound.volume * 100).toFixed(2))}
-                          onChange={(e) => {
-                            let val = parseFloat(e.target.value);
-                            if (!isNaN(val)) setEditingSound({ ...editingSound, volume: val / 100 });
-                          }}
-                          className="text-xs font-mono font-medium text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                          title="Edit Clip Volume"
-                        />
-                        <span className="text-xs font-mono font-medium text-cyan-400">%</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range" min="0" max="1" step="0.01"
-                      value={editingSound.volume}
-                      onChange={e => setEditingSound({ ...editingSound, volume: parseFloat(e.target.value) })}
-                      className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 mt-3"
-                    />
-                  </div>
-                </div>
-
-                {/* FADE CONTROLS */}
-                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                  {/* Standard Fades (Start/End) */}
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">Fade In (Start)</span>
-                        <div className="flex items-center">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            max="5"
-                            value={parseFloat((editingSound.fadeIn || 0).toFixed(2))}
-                            onChange={(e) => {
-                              let val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setEditingSound({ ...editingSound, fadeIn: val });
-                            }}
-                            className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                            title="Edit Fade In Time"
-                          />
-                          <span className="text-cyan-400 ml-0.5">s</span>
+                            onClick={() => setEditingSound({ ...editingSound, mode: 'restart' })}
+                            className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'restart' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            <Zap className="w-3 h-3" /> One-Shot
+                          </button>
+                          <button
+                            onClick={() => setEditingSound({ ...editingSound, mode: (editingSound.mode === 'toggle-restart' ? 'toggle-restart' : 'toggle') })}
+                            className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${(editingSound.mode === 'toggle' || editingSound.mode === 'toggle-restart') ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            <Power className="w-3 h-3" /> Toggle
+                          </button>
                         </div>
-                      </div>
-                      <input
-                        type="range" min="0" max="5" step="0.5"
-                        value={editingSound.fadeIn || 0}
-                        onChange={e => setEditingSound({ ...editingSound, fadeIn: parseFloat(e.target.value) })}
-                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">Fade Out (End)</span>
-                        <div className="flex items-center">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            max="5"
-                            value={parseFloat((editingSound.fadeOut || 0).toFixed(2))}
-                            onChange={(e) => {
-                              let val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setEditingSound({ ...editingSound, fadeOut: val });
-                            }}
-                            className="text-cyan-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                            title="Edit Fade Out Time"
-                          />
-                          <span className="text-cyan-400 ml-0.5">s</span>
-                        </div>
-                      </div>
-                      <input
-                        type="range" min="0" max="5" step="0.5"
-                        value={editingSound.fadeOut || 0}
-                        onChange={e => setEditingSound({ ...editingSound, fadeOut: parseFloat(e.target.value) })}
-                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                      />
-                    </div>
-                  </div>
 
-                  {/* Pause/Resume Fades (Only for Toggle Mode) */}
-                  {editingSound.mode === 'toggle' && (
-                    <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-400">Resume Fade</span>
-                          <div className="flex items-center">
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              max="5"
-                              value={parseFloat((editingSound.resumeFade ?? 0.1).toFixed(2))}
-                              onChange={(e) => {
-                                let val = parseFloat(e.target.value);
-                                if (!isNaN(val)) setEditingSound({ ...editingSound, resumeFade: val });
-                              }}
-                              className="text-indigo-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                              title="Edit Resume Fade Time"
-                            />
-                            <span className="text-indigo-400 ml-0.5">s</span>
+                        {(editingSound.mode === 'toggle' || editingSound.mode === 'toggle-restart') && (
+                          <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
+                            <button
+                              onClick={() => setEditingSound({ ...editingSound, mode: 'toggle' })}
+                              className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                              title="Pause and resume from where it left off"
+                            >
+                              <Pause className="w-3 h-3" /> Pausable
+                            </button>
+                            <button
+                              onClick={() => setEditingSound({ ...editingSound, mode: 'toggle-restart' })}
+                              className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle-restart' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                              title="Always start from the beginning when toggled ON"
+                            >
+                              <RotateCcw className="w-3 h-3" /> Restart
+                            </button>
                           </div>
-                        </div>
-                        <input
-                          type="range" min="0" max="5" step="0.1"
-                          value={editingSound.resumeFade ?? 0.1}
-                          onChange={e => setEditingSound({ ...editingSound, resumeFade: parseFloat(e.target.value) })}
-                          className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-400">Pause Fade</span>
-                          <div className="flex items-center">
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              max="5"
-                              value={parseFloat((editingSound.pauseFade ?? 0.1).toFixed(2))}
-                              onChange={(e) => {
-                                let val = parseFloat(e.target.value);
-                                if (!isNaN(val)) setEditingSound({ ...editingSound, pauseFade: val });
-                              }}
-                              className="text-amber-400 w-12 text-right bg-transparent focus:outline-none appearance-none hover:bg-slate-900 px-1 rounded transition-colors hide-arrows"
-                              title="Edit Pause Fade Time"
-                            />
-                            <span className="text-amber-400 ml-0.5">s</span>
+                        )}
+
+                        {editingSound.mode === 'restart' && (
+                          <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
+                            <button
+                              onClick={() => setEditingSound({ ...editingSound, overlap: true })}
+                              className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                              title="Stack sounds on top of each other"
+                            >
+                              <Layers className="w-3 h-3" /> Overlap
+                            </button>
+                            <button
+                              onClick={() => setEditingSound({ ...editingSound, overlap: false })}
+                              className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${!editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                              title="Stop previous sound when pressed again"
+                            >
+                              <Scissors className="w-3 h-3" /> Cut
+                            </button>
                           </div>
-                        </div>
-                        <input
-                          type="range" min="0" max="5" step="0.1"
-                          value={editingSound.pauseFade ?? 0.1}
-                          onChange={e => setEditingSound({ ...editingSound, pauseFade: parseFloat(e.target.value) })}
-                          className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                        />
+                        )}
+
+                        <label className="flex items-center gap-2 cursor-pointer pt-1">
+                          <input type="checkbox" checked={editingSound.loop} onChange={e => setEditingSound({ ...editingSound, loop: e.target.checked })} className="rounded bg-slate-700 border-slate-500 text-cyan-500 focus:ring-offset-0 focus:ring-0" />
+                          <span className="text-sm text-slate-300">Loop Audio</span>
+                        </label>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
-                  <div className="flex bg-slate-800 rounded-md p-0.5">
-                    <button
-                      onClick={() => setEditingSound({ ...editingSound, mode: 'restart' })}
-                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'restart' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                    >
-                      <Zap className="w-3 h-3" /> One-Shot
-                    </button>
-                    <button
-                      onClick={() => setEditingSound({ ...editingSound, mode: (editingSound.mode === 'toggle-restart' ? 'toggle-restart' : 'toggle') })}
-                      className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${(editingSound.mode === 'toggle' || editingSound.mode === 'toggle-restart') ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                    >
-                      <Power className="w-3 h-3" /> Toggle
-                    </button>
                   </div>
-
-                  {(editingSound.mode === 'toggle' || editingSound.mode === 'toggle-restart') && (
-                    <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
-                      <button
-                        onClick={() => setEditingSound({ ...editingSound, mode: 'toggle' })}
-                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                        title="Pause and resume from where it left off"
-                      >
-                        <Pause className="w-3 h-3" /> Pausable
-                      </button>
-                      <button
-                        onClick={() => setEditingSound({ ...editingSound, mode: 'toggle-restart' })}
-                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.mode === 'toggle-restart' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                        title="Always start from the beginning when toggled ON"
-                      >
-                        <RotateCcw className="w-3 h-3" /> Restart
-                      </button>
-                    </div>
-                  )}
-
-                  {editingSound.mode === 'restart' && (
-                    <div className="flex bg-slate-800 rounded-md p-0.5 animate-in slide-in-from-top-1 fade-in duration-200">
-                      <button
-                        onClick={() => setEditingSound({ ...editingSound, overlap: true })}
-                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                        title="Stack sounds on top of each other"
-                      >
-                        <Layers className="w-3 h-3" /> Overlap
-                      </button>
-                      <button
-                        onClick={() => setEditingSound({ ...editingSound, overlap: false })}
-                        className={`flex-1 py-1.5 text-xs rounded transition-all flex items-center justify-center gap-2 ${!editingSound.overlap ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                        title="Stop previous sound when pressed again"
-                      >
-                        <Scissors className="w-3 h-3" /> Cut
-                      </button>
-                    </div>
-                  )}
-
-                  <label className="flex items-center gap-2 cursor-pointer pt-1">
-                    <input type="checkbox" checked={editingSound.loop} onChange={e => setEditingSound({ ...editingSound, loop: e.target.checked })} className="rounded bg-slate-700 border-slate-500 text-cyan-500 focus:ring-offset-0 focus:ring-0" />
-                    <span className="text-sm text-slate-300">Loop Audio</span>
-                  </label>
-                </div>
+                ) : null}
 
               </div>
 
