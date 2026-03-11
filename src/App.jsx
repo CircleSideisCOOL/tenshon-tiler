@@ -1511,6 +1511,19 @@ export default function SoundboardApp() {
       source.start(now);
       updateVisualState(id, true);
 
+      // --- END-OF-TRACK FADE OUT for One-Shots ---
+      const fadeOut = sound.fadeOut || 0;
+      if (fadeOut > 0 && !sound.loop && buffer.duration > fadeOut) {
+        const fadeOutStartTime = now + buffer.duration - fadeOut;
+        applyWebAudioFade(gainNode.gain, oneShotTargetVol, 0, fadeOutStartTime, fadeOut, sound.fadeCurve || 'linear');
+
+        // Show the FADE OUT timer on the tile when the fade begins
+        const delayMs = (buffer.duration - fadeOut) * 1000;
+        setTimeout(() => {
+          startFadeTimer(id, 'FADE OUT', fadeOut);
+        }, Math.max(0, delayMs));
+      }
+
       if (!activeSourcesRef.current[id]) activeSourcesRef.current[id] = [];
       activeSourcesRef.current[id].push({ source, gainNode });
 
