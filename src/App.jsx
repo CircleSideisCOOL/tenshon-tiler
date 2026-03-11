@@ -167,6 +167,8 @@ function TutorialSoundTile({ sound, isActive, isGlobalPaused, playSound, fadeInf
         }
       };
       update();
+    } else {
+      setLocalRemaining(0);
     }
     return () => cancelAnimationFrame(animId);
   }, [fadeInfo]);
@@ -385,6 +387,8 @@ function SortableSoundTile({ sound, isEditMode, isActive, isGlobalPaused, playSo
         }
       };
       update();
+    } else {
+      setLocalRemaining(0);
     }
     return () => cancelAnimationFrame(animId);
   }, [fadeInfo]);
@@ -1274,11 +1278,17 @@ export default function SoundboardApp() {
         const pauseDuration = sound.pauseFade !== undefined ? sound.pauseFade : 0.1;
         const fadeTime = pauseDuration * 1000;
 
-        // Cancel any existing fade (e.g., end-of-track fade-out)
+        // Cancel any existing fade (e.g., end-of-track fade-out or fade-in still running)
         if (audio._fadeInterval) {
           clearInterval(audio._fadeInterval);
           audio._fadeInterval = null;
         }
+        // Clear any stale fade timer (e.g., a FADE IN that was still counting down)
+        setActiveFades(prev => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
 
         if (fadeTime > 0) {
           const startVol = audio.volume;
@@ -1296,9 +1306,15 @@ export default function SoundboardApp() {
             if (p >= 1 || currentVol <= 0.001) {
               audio.volume = 0;
               audio.pause();
-              audio._pausedByUser = true; // Explicit flag for resume detection
+              audio._pausedByUser = true;
               clearInterval(fadeInterval);
               audio._fadeInterval = null;
+              // Clear all fade timers for this sound when pause completes
+              setActiveFades(prev => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
               updateVisualState(id, 'reset');
             } else {
               audio.volume = Math.min(1, currentVol);
@@ -1308,7 +1324,13 @@ export default function SoundboardApp() {
           startFadeTimer(id, 'PAUSING', pauseDuration);
         } else {
           audio.pause();
-          audio._pausedByUser = true; // Explicit flag for resume detection
+          audio._pausedByUser = true;
+          // Clear all fade timers for this sound
+          setActiveFades(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
           updateVisualState(id, 'reset');
         }
         return;
